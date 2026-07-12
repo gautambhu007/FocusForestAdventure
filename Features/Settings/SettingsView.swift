@@ -45,6 +45,13 @@ final class SettingsViewModel {
             UserDefaults.standard.set(difficulty.rawValue, forKey: "settings.difficulty")
         }
     }
+    /// Age-based content: 4 = letters, 5 = word reading in ABC.
+    var childAge: Int {
+        didSet {
+            dependencies.appState.settings.childAge = childAge
+            UserDefaults.standard.set(childAge, forKey: "settings.childAge")
+        }
+    }
     /// Phase 2.7 consent — off by default, explicit opt-in.
     var isEngagementAdaptationEnabled: Bool {
         didSet {
@@ -75,6 +82,8 @@ final class SettingsViewModel {
             rawValue: defaults.string(forKey: "settings.difficulty") ?? ""
         ) ?? .automatic
         self.isEngagementAdaptationEnabled = defaults.bool(forKey: "settings.engagement")   // false unless opted in
+        let savedAge = defaults.integer(forKey: "settings.childAge")
+        self.childAge = savedAge == 0 ? 4 : savedAge
         self.language = AppLanguage(
             rawValue: defaults.string(forKey: "settings.language") ?? ""
         ) ?? .system
@@ -104,6 +113,10 @@ struct SettingsView: View {
             }
 
             Section {
+                Picker(String(localized: "Child's age"), selection: $viewModel.childAge) {
+                    Text(String(localized: "4 years")).tag(4)
+                    Text(String(localized: "5 years")).tag(5)
+                }
                 Picker(String(localized: "Difficulty"), selection: $viewModel.difficulty) {
                     Text(String(localized: "Gentle")).tag(DifficultyPreference.gentle)
                     Text(String(localized: "Automatic (recommended)")).tag(DifficultyPreference.automatic)
@@ -112,7 +125,7 @@ struct SettingsView: View {
             } header: {
                 Text(String(localized: "Learning"))
             } footer: {
-                Text(String(localized: "Automatic adjusts gently based on how your child is doing. It never jumps difficulty."))
+                Text(String(localized: "At 4, the ABC adventure practices letters. At 5, it becomes word reading — short words with four choices, and no word repeats until all 350+ have been seen. Difficulty adjusts gently and never jumps."))
             }
 
             Section {

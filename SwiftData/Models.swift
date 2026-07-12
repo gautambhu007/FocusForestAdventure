@@ -14,6 +14,9 @@ import SwiftData
 @Model
 final class ChildProfile {
     var name: String = ""
+    /// Age-based content: word targets already shown in ABC word missions.
+    /// Cleared automatically when the whole WordBank has been used once.
+    var usedWordsRaw: [String] = []
     var avatarEmoji: String = "🐰"
     var birthYear: Int = 2021
     var createdAt: Date = Date()

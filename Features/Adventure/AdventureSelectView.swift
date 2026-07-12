@@ -52,7 +52,8 @@ final class AdventureSelectViewModel {
                 child: child,
                 difficultyEngine: dependencies.difficultyEngine,
                 preference: dependencies.appState.settings.preferredDifficulty,
-                duration: todayPlan?.missionDuration ?? 240
+                duration: todayPlan?.missionDuration ?? 240,
+                age: dependencies.appState.settings.childAge
             )
             await dependencies.speechService.speak(BunnyPhrase.missionStart.text)
             dependencies.appState.navigationPath.append(.mission(plan))

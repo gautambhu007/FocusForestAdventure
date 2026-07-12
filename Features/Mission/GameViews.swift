@@ -62,7 +62,10 @@ struct TapCorrectGameView: View {
             } else {
                 Text(option.display)
                     .font(ForestTheme.Fonts.giant)
-                    .minimumScaleFactor(0.4)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)   // explicit: .primary turns white in dark mode
+                    .lineLimit(1)               // words must never wrap mid-word
+                    .minimumScaleFactor(0.2)
+                    .padding(.horizontal, 8)
                     .frame(maxWidth: .infinity, minHeight: 120)
                     .background(ForestTheme.Colors.cloudWhite)
             }
@@ -391,10 +394,11 @@ struct TraceLetterGameView: View {
                         .fill(ForestTheme.Colors.cloudWhite)
                         .shadow(color: .black.opacity(0.08), radius: 10, y: 5)
 
-                    // Ghost letter
+                    // Ghost letter (deepGreen adapts: soft green by day,
+                    // soft mint by night — visible on the card either way)
                     Text(letter)
                         .font(.system(size: proxy.size.height * 0.7, weight: .heavy, design: .rounded))
-                        .foregroundStyle(ForestTheme.Colors.mint.opacity(0.7))
+                        .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(0.28))
 
                     // Guide dots
                     ForEach(guidePoints.indices, id: \.self) { index in

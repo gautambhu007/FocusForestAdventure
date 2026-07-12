@@ -7,34 +7,56 @@
 //
 
 import SwiftUI
+import UIKit
 
 enum ForestTheme {
 
     // MARK: Colors
 
     enum Colors {
-        static let deepGreen   = Color(red: 0.13, green: 0.42, blue: 0.30)
-        static let leafGreen   = Color(red: 0.55, green: 0.80, blue: 0.55)
-        static let mint        = Color(red: 0.78, green: 0.93, blue: 0.82)
-        static let sunshine    = Color(red: 1.00, green: 0.80, blue: 0.35)
-        static let peach       = Color(red: 1.00, green: 0.72, blue: 0.58)
-        static let bubblegum   = Color(red: 0.98, green: 0.62, blue: 0.75)
-        static let skyBlue     = Color(red: 0.62, green: 0.84, blue: 0.98)
-        static let lavender    = Color(red: 0.78, green: 0.72, blue: 0.95)
-        static let cloudWhite  = Color(red: 0.98, green: 0.98, blue: 0.96)
+        /// Dynamic color: pastel daytime palette in light mode, a calm
+        /// "forest at night" palette in dark mode. Centralizing adaptivity
+        /// here means every screen inherits night mode automatically.
+        private static func adaptive(
+            light: (Double, Double, Double),
+            dark: (Double, Double, Double)
+        ) -> Color {
+            Color(UIColor { traits in
+                let (r, g, b) = traits.userInterfaceStyle == .dark ? dark : light
+                return UIColor(red: r, green: g, blue: b, alpha: 1)
+            })
+        }
+
+        /// Primary text/ink: deep green by day, soft mint by night.
+        static let deepGreen   = adaptive(light: (0.13, 0.42, 0.30), dark: (0.72, 0.92, 0.80))
+        static let leafGreen   = adaptive(light: (0.55, 0.80, 0.55), dark: (0.42, 0.68, 0.46))
+        /// Large surface tint: pale mint by day, deep moss by night.
+        static let mint        = adaptive(light: (0.78, 0.93, 0.82), dark: (0.13, 0.24, 0.18))
+        static let sunshine    = adaptive(light: (1.00, 0.80, 0.35), dark: (0.95, 0.72, 0.30))
+        static let peach       = adaptive(light: (1.00, 0.72, 0.58), dark: (0.62, 0.40, 0.34))
+        static let bubblegum   = adaptive(light: (0.98, 0.62, 0.75), dark: (0.60, 0.34, 0.45))
+        /// Sky: daylight blue by day, dusk navy by night (gradients inherit).
+        static let skyBlue     = adaptive(light: (0.62, 0.84, 0.98), dark: (0.15, 0.22, 0.36))
+        static let lavender    = adaptive(light: (0.78, 0.72, 0.95), dark: (0.36, 0.32, 0.52))
+        /// Card surface: warm white by day, dark green-gray by night.
+        static let cloudWhite  = adaptive(light: (0.98, 0.98, 0.96), dark: (0.15, 0.19, 0.17))
         static let soil        = Color(red: 0.55, green: 0.42, blue: 0.30)
+        /// Card edge highlight (forestCard border).
+        static let cardStroke  = adaptive(light: (1.0, 1.0, 1.0), dark: (0.35, 0.45, 0.40))
 
         /// Game colors with color-blind-safe variants (distinct luminance + shape pairing).
+        /// Deliberately FIXED (non-adaptive): these teach color names, so
+        /// "blue" must look blue in night mode too.
         static func gameColor(_ name: GameColor, colorBlindMode: Bool) -> Color {
             switch (name, colorBlindMode) {
             case (.red, false):    return Color(red: 0.95, green: 0.45, blue: 0.42)
             case (.red, true):     return Color(red: 0.80, green: 0.25, blue: 0.20)
-            case (.blue, _):       return skyBlue
-            case (.green, false):  return leafGreen
+            case (.blue, _):       return Color(red: 0.62, green: 0.84, blue: 0.98)
+            case (.green, false):  return Color(red: 0.55, green: 0.80, blue: 0.55)
             case (.green, true):   return Color(red: 0.00, green: 0.62, blue: 0.45)   // teal-green
-            case (.yellow, _):     return sunshine
-            case (.purple, _):     return lavender
-            case (.pink, _):       return bubblegum
+            case (.yellow, _):     return Color(red: 1.00, green: 0.80, blue: 0.35)
+            case (.purple, _):     return Color(red: 0.78, green: 0.72, blue: 0.95)
+            case (.pink, _):       return Color(red: 0.98, green: 0.62, blue: 0.75)
             case (.orange, _):     return Color(red: 1.00, green: 0.60, blue: 0.20)
             case (.brown, _):      return Color(red: 0.58, green: 0.42, blue: 0.25)
             case (.black, _):      return Color(red: 0.16, green: 0.16, blue: 0.18)

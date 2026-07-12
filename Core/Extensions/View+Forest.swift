@@ -20,7 +20,7 @@ extension View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.55), lineWidth: 1.5)
+                    .strokeBorder(ForestTheme.Colors.cardStroke.opacity(0.55), lineWidth: 1.5)
             )
             .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
     }

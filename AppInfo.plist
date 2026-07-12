@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Adventure</string>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera is used only to show your child's forest in augmented reality and for optional gesture mini-games. No photos or videos are ever captured, stored, or shared.</string>
 	<key>NSMicrophoneUsageDescription</key>

@@ -26,17 +26,34 @@ struct MissionGeneratorEngine: Sendable {
     }
 
     /// Generate a full mission for an adventure at a difficulty (1...5).
+    /// `age` switches content style (5+ turns ABC into word reading);
+    /// `usedWords` keeps word targets from ever repeating.
     func generateMission(
         adventure: AdventureKind,
         difficulty: Int,
-        duration: TimeInterval = 240
+        duration: TimeInterval = 240,
+        age: Int = 4,
+        usedWords: Set<String> = []
     ) -> MissionPlan {
         let level = difficulty.clamped(to: 1...5)
         let questionCount = Self.questionsPerMission
-        let type = missionType(for: adventure, difficulty: level)
-        let questions = (0..<questionCount).map { _ in
-            makeQuestion(adventure: adventure, type: type, difficulty: level)
+
+        // Age 5+: the ABC adventure becomes word reading.
+        let type: MissionType = (adventure == .alphabet && age >= 5)
+            ? .findWord
+            : missionType(for: adventure, difficulty: level)
+
+        var targetWords: [String] = []
+        let questions: [MissionQuestion]
+        if type == .findWord {
+            targetWords = WordBank.drawTargets(count: questionCount, excluding: usedWords)
+            questions = targetWords.map { wordQuestion(target: $0) }
+        } else {
+            questions = (0..<questionCount).map { _ in
+                makeQuestion(adventure: adventure, type: type, difficulty: level)
+            }
         }
+
         return MissionPlan(
             id: UUID(),
             adventure: adventure,
@@ -46,7 +63,8 @@ struct MissionGeneratorEngine: Sendable {
             // Never let the attention-based duration cut a full mission short:
             // allow at least ~secondsPerQuestion per question.
             maxDuration: max(duration, TimeInterval(questionCount) * Self.secondsPerQuestion),
-            frustrationMissLimit: 3
+            frustrationMissLimit: 3,
+            targetWords: targetWords
         )
     }
 
@@ -76,6 +94,10 @@ struct MissionGeneratorEngine: Sendable {
 
     func makeQuestion(adventure: AdventureKind, type: MissionType, difficulty: Int) -> MissionQuestion {
         switch type {
+        case .findWord:
+            // Normally built in bulk by generateMission (non-repeating);
+            // this path is a safe fallback for direct calls.
+            return wordQuestion(target: WordBank.drawTargets(count: 1, excluding: []).first ?? "cat")
         case .findLetter, .matchLetters, .letterSound:
             return letterQuestion(difficulty: difficulty, spokenSound: type == .letterSound)
         case .traceLetter:
@@ -130,6 +152,26 @@ struct MissionGeneratorEngine: Sendable {
 
     private func letterLabel(_ letter: String) -> String {
         String(localized: "Letter \(letter)")
+    }
+
+    /// Age 5+ word reading: find the spoken word among 4 word options.
+    func wordQuestion(target: String) -> MissionQuestion {
+        let display = target.uppercased()
+        var options = WordBank.distractors(for: target, count: 3).map {
+            QuestionOption(display: $0.uppercased(), label: wordLabel($0))
+        }
+        options.append(QuestionOption(display: display, label: wordLabel(target)))
+        options.shuffle()
+        let correctID = options.first(where: { $0.display == display })!.id
+        return MissionQuestion(
+            id: UUID(),
+            prompt: String(localized: "Can you find the word \(display)?"),
+            content: .tapCorrect(options: options, correctID: correctID)
+        )
+    }
+
+    private func wordLabel(_ word: String) -> String {
+        String(localized: "Word \(word)")
     }
 
     private func traceQuestion(difficulty: Int) -> MissionQuestion {

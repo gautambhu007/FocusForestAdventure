@@ -104,7 +104,25 @@ struct MissionContainerView: View {
             if viewModel.feedback == .correct {
                 ConfettiView(particleCount: 40).ignoresSafeArea()
             }
+
+            // Word missions: the found word with its picture (🐱 + CAT).
+            if let reveal = viewModel.revealedWord {
+                VStack(spacing: 10) {
+                    Text(reveal.emoji)
+                        .font(.system(size: 120))
+                    Text(reveal.word)
+                        .font(ForestTheme.Fonts.title)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                }
+                .padding(32)
+                .forestCard()
+                .transition(.scale(scale: 0.5).combined(with: .opacity))
+                .zIndex(2)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(String(localized: "You found the word \(reveal.word)!"))
+            }
         }
+        .animation(.bouncy(duration: 0.45), value: viewModel.revealedWord)
     }
 
     // MARK: Question routing
@@ -116,6 +134,7 @@ struct MissionContainerView: View {
                 .font(ForestTheme.Fonts.heading)
                 .foregroundStyle(ForestTheme.Colors.deepGreen)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)   // wrap, never "F…"
                 .padding(.horizontal)
                 .accessibilityAddTraits(.isHeader)
 

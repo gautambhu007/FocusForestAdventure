@@ -72,6 +72,8 @@ final class AppDependencies {
         appState.settings.preferredDifficulty = DifficultyPreference(
             rawValue: defaults.string(forKey: "settings.difficulty") ?? ""
         ) ?? .automatic
+        let savedAge = defaults.integer(forKey: "settings.childAge")
+        appState.settings.childAge = savedAge == 0 ? 4 : savedAge
 
         // Repositories (SwiftData-backed)
         let childRepo = SwiftDataChildRepository(context: context)
@@ -199,6 +201,9 @@ struct AppSettings: Equatable {
     var isEngagementAdaptationEnabled = false
     var preferredDifficulty: DifficultyPreference = .automatic
     var language: AppLanguage = .system
+    /// Age-based content: 4 = letter recognition in ABC, 5 = word reading
+    /// (4 word options, non-repeating 350+ word bank).
+    var childAge: Int = 4
 }
 
 enum DifficultyPreference: String, CaseIterable, Codable {

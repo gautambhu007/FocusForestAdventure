@@ -64,6 +64,9 @@ struct MissionPlan: Hashable, Sendable {
     let maxDuration: TimeInterval
     /// Auto-end early after this many consecutive misses (child never "fails").
     let frustrationMissLimit: Int
+    /// Word missions (age 5+): targets in question order, consumed on
+    /// completion so words never repeat until the bank is exhausted.
+    var targetWords: [String] = []
 
     static func == (lhs: MissionPlan, rhs: MissionPlan) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -72,6 +75,8 @@ struct MissionPlan: Hashable, Sendable {
 enum MissionType: String, Codable, Sendable, CaseIterable {
     // Alphabet
     case findLetter, matchLetters, traceLetter, letterSound
+    /// Age 5+: read a short word and find it among 4 word options.
+    case findWord
     // Numbers
     case countObjects, findBiggerNumber, simpleAddition
     // Shapes

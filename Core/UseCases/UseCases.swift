@@ -16,12 +16,14 @@ struct StartMissionUseCase {
     let generator: MissionGeneratorEngine
 
     /// Generate a personalized mission for the chosen adventure.
+    /// `age` switches content style (5+ gets word reading in ABC).
     func execute(
         adventure: AdventureKind,
         child: ChildProfile,
         difficultyEngine: AdaptiveDifficultyEngine,
         preference: DifficultyPreference,
-        duration: TimeInterval
+        duration: TimeInterval,
+        age: Int = 4
     ) throws -> MissionPlan {
         let history = try missionRepository
             .missions(for: child, since: nil)
@@ -39,7 +41,13 @@ struct StartMissionUseCase {
             recentMissions: Array(history),
             preference: preference
         )
-        return generator.generateMission(adventure: adventure, difficulty: difficulty, duration: duration)
+        return generator.generateMission(
+            adventure: adventure,
+            difficulty: difficulty,
+            duration: duration,
+            age: age,
+            usedWords: Set(child.usedWordsRaw)
+        )
     }
 }
 
@@ -85,6 +93,19 @@ struct CompleteMissionUseCase {
         record.endedEarly = endedEarly
         record.averageResponseTime = responseTimes.isEmpty
             ? 0 : responseTimes.reduce(0, +) / Double(responseTimes.count)
+
+        // Word missions: consume the ATTEMPTED targets so they never repeat.
+        // Unattempted words (early end) stay fresh for the next mission.
+        // Once the whole bank has been seen, start a new lap.
+        if !plan.targetWords.isEmpty {
+            let attempted = plan.targetWords.prefix(max(0, correct + wrong))
+            let known = Set(child.usedWordsRaw)
+            child.usedWordsRaw += attempted.filter { !known.contains($0) }
+            if Set(child.usedWordsRaw).isSuperset(of: WordBank.allWords) {
+                child.usedWordsRaw = Array(attempted)
+            }
+        }
+
         try missionRepository.save(record, for: child)
 
         // 2. Compute rewards (effort always counts).

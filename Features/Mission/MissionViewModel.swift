@@ -46,6 +46,13 @@ final class MissionViewModel {
     /// Phase 2.8: which reward the celebration should spotlight today.
     private(set) var rewardEmphasis: RewardEmphasis?
 
+    /// Word missions: picture card shown after finding the right word.
+    struct RevealedWord: Equatable {
+        let word: String    // uppercased
+        let emoji: String
+    }
+    private(set) var revealedWord: RevealedWord?
+
     enum Feedback: Equatable { case none, correct, tryAgain }
 
     var currentQuestion: MissionQuestion? {
@@ -106,8 +113,20 @@ final class MissionViewModel {
             sparkleTrigger += 1
             dependencies.hapticsService.playSuccess()
             dependencies.soundEngine.play(.correctChime)
-            await dependencies.speechService.speak(BunnyPhrase.correct.text)
-            try? await Task.sleep(for: .seconds(1.2))
+
+            // Word missions: reveal the word's picture and say the word —
+            // seeing CAT next to 🐱 is the whole learning moment.
+            if plan.missionType == .findWord, plan.targetWords.indices.contains(questionIndex) {
+                let word = plan.targetWords[questionIndex]
+                revealedWord = RevealedWord(word: word.uppercased(), emoji: WordBank.emoji(for: word))
+                await dependencies.speechService.speak(
+                    String(localized: "\(word.uppercased())! \(BunnyPhrase.correct.text)")
+                )
+                try? await Task.sleep(for: .seconds(2.4))   // time to look at the picture
+            } else {
+                await dependencies.speechService.speak(BunnyPhrase.correct.text)
+                try? await Task.sleep(for: .seconds(1.2))
+            }
             await applyEngagementPacing()
             guard !isFinishing else { return }
             await advance()
@@ -176,6 +195,7 @@ final class MissionViewModel {
 
     private func advance() async {
         feedback = .none
+        revealedWord = nil
         questionIndex += 1
         progress = Double(questionIndex) / Double(plan.questions.count)
 

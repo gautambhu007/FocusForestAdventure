@@ -122,6 +122,19 @@ Gap-closing addenda: the AR forest also places procedural forest friends
 (fox), and `HandTrackingService` runs `WaveDetector` so waving at Bunny in
 Star Catch earns a wave-back and bonus stars.
 
+## 4d. Age-based content
+
+`AppSettings.childAge` (Settings → Learning, default 4) switches content
+style. At age 5 the ABC adventure becomes word reading: `MissionType.findWord`
+questions show 4 word options (3–4 letters, uppercase) drawn from `WordBank`
+— 350+ curated, kid-safe words. Targets never repeat: attempted words are
+recorded on `ChildProfile.usedWordsRaw` at mission completion and excluded
+from future draws until the whole bank has been seen once (then a new lap
+starts). Distractors may repeat; only targets are tracked. Other adventures
+are age-independent for now — the switch point is centralized in
+`MissionGeneratorEngine.generateMission(age:usedWords:)` so future ages only
+touch the engine.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).
