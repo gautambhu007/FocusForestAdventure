@@ -1,0 +1,93 @@
+# XcodeGen project definition — run `xcodegen generate` to produce
+# FocusForestAdventure.xcodeproj. (brew install xcodegen)
+name: FocusForestAdventure
+options:
+  bundleIdPrefix: com.focusforest
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+packages:
+  Lottie:
+    url: https://github.com/airbnb/lottie-ios
+    from: 4.4.0
+  SnapshotTesting:
+    url: https://github.com/pointfreeco/swift-snapshot-testing
+    from: 1.17.0
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GENERATE_INFOPLIST_FILE: YES
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.0.0
+    OTHER_SWIFT_FLAGS: "-warnings-as-errors"
+
+targets:
+  FocusForestAdventure:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Core
+      - DesignSystem
+      - Features
+      - AI
+      - Services
+      - Repository
+      - SwiftData
+      - Resources
+    dependencies:
+      - package: Lottie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.focusforest.adventure
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        CODE_SIGN_ENTITLEMENTS: Resources/FocusForestAdventure.entitlements
+
+  ForestWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources: [Widget]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.focusforest.adventure.widget
+
+  FocusForestAdventureTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/UnitTests
+    dependencies:
+      - target: FocusForestAdventure
+
+  FocusForestAdventureSnapshotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/SnapshotTests
+    dependencies:
+      - target: FocusForestAdventure
+      - package: SnapshotTesting
+
+  FocusForestAdventureUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Tests/UITests
+    dependencies:
+      - target: FocusForestAdventure
+
+schemes:
+  FocusForestAdventure:
+    build:
+      targets:
+        FocusForestAdventure: all
+    test:
+      targets:
+        - FocusForestAdventureTests
+        - FocusForestAdventureSnapshotTests
+        - FocusForestAdventureUITests
