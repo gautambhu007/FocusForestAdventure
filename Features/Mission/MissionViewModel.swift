@@ -43,6 +43,9 @@ final class MissionViewModel {
     /// generation failed — the flow then skips straight to the movement break.
     private(set) var pendingStory: StoryRecord?
 
+    /// Phase 2.8: which reward the celebration should spotlight today.
+    private(set) var rewardEmphasis: RewardEmphasis?
+
     enum Feedback: Equatable { case none, correct, tryAgain }
 
     var currentQuestion: MissionQuestion? {
@@ -105,6 +108,8 @@ final class MissionViewModel {
             dependencies.soundEngine.play(.correctChime)
             await dependencies.speechService.speak(BunnyPhrase.correct.text)
             try? await Task.sleep(for: .seconds(1.2))
+            await applyEngagementPacing()
+            guard !isFinishing else { return }
             await advance()
         } else {
             wrong += 1
@@ -128,6 +133,30 @@ final class MissionViewModel {
     /// Called by non-binary games (tracing, memory) when the child completes the task.
     func completeCurrentQuestion() async {
         await submitAnswer(correct: true)
+    }
+
+    /// Phase 2.7: consent-gated pacing from interaction signals only.
+    /// Low engagement → cheerful nudge; very low → celebratory early end
+    /// (same graceful exit as the frustration guard — never a punishment).
+    private func applyEngagementPacing() async {
+        guard dependencies.appState.settings.isEngagementAdaptationEnabled,
+              responseTimes.count >= 3, !isFinishing else { return }
+
+        let score = dependencies.engagementEngine.score(
+            responseTimes: responseTimes,
+            consecutiveMisses: consecutiveMisses,
+            secondsSinceInteraction: 0   // we just got an answer
+        )
+        switch dependencies.engagementEngine.advice(for: score) {
+        case .keepGoing:
+            break
+        case .encourage:
+            await dependencies.speechService.speak(
+                String(localized: "You're doing so well! Just a little more!")
+            )
+        case .windDown:
+            await finishMission(endedEarly: true)
+        }
     }
 
     /// Home button: leave the mission early. Progress so far still counts and
@@ -183,8 +212,19 @@ final class MissionViewModel {
             pendingStory = try? dependencies.storyService.generateStory(
                 after: plan, child: child, rewards: result.rewards
             )
-            // Same screen, new phase — no NavigationStack surgery.
+            // Phase 2.8: consume the daily recommendations — movement break
+            // that fits today's focus pattern, and the reward to spotlight.
+            // Failure is silent; the use case's random break is the fallback.
             pendingBreak = result.movementBreak
+            if let summary = try? dependencies.statisticsRepository.performanceSummary(for: child, days: 14) {
+                let daily = dependencies.recommendationEngine.makeDailyRecommendations(
+                    summary: summary,
+                    preference: dependencies.appState.settings.preferredDifficulty
+                )
+                pendingBreak = daily.movementBreak
+                rewardEmphasis = daily.rewardEmphasis
+            }
+            // Same screen, new phase — no NavigationStack surgery.
             phase = .reward(result.rewards)
         } catch {
             dependencies.appState.navigationPath.removeAll()

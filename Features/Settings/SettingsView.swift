@@ -45,6 +45,13 @@ final class SettingsViewModel {
             UserDefaults.standard.set(difficulty.rawValue, forKey: "settings.difficulty")
         }
     }
+    /// Phase 2.7 consent — off by default, explicit opt-in.
+    var isEngagementAdaptationEnabled: Bool {
+        didSet {
+            dependencies.appState.settings.isEngagementAdaptationEnabled = isEngagementAdaptationEnabled
+            UserDefaults.standard.set(isEngagementAdaptationEnabled, forKey: "settings.engagement")
+        }
+    }
     var language: AppLanguage {
         didSet {
             dependencies.appState.settings.language = language
@@ -67,6 +74,7 @@ final class SettingsViewModel {
         self.difficulty = DifficultyPreference(
             rawValue: defaults.string(forKey: "settings.difficulty") ?? ""
         ) ?? .automatic
+        self.isEngagementAdaptationEnabled = defaults.bool(forKey: "settings.engagement")   // false unless opted in
         self.language = AppLanguage(
             rawValue: defaults.string(forKey: "settings.language") ?? ""
         ) ?? .system
@@ -105,6 +113,15 @@ struct SettingsView: View {
                 Text(String(localized: "Learning"))
             } footer: {
                 Text(String(localized: "Automatic adjusts gently based on how your child is doing. It never jumps difficulty."))
+            }
+
+            Section {
+                Toggle(String(localized: "Engagement-aware pacing"),
+                       isOn: $viewModel.isEngagementAdaptationEnabled)
+            } header: {
+                Text(String(localized: "Engagement (optional)"))
+            } footer: {
+                Text(String(localized: "When on, the app senses fading attention from answer timing only — no camera, no photos, nothing identifies your child, and nothing leaves this device. It is used solely to slow down, encourage, or wrap up gracefully. Off by default."))
             }
 
             Section {

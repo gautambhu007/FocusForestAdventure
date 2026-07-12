@@ -62,6 +62,10 @@ struct RootView: View {
             StoryHistory(viewModel: StoryHistoryViewModel(dependencies: dependencies))
         case .bunnyAssistant:
             BunnyAssistantView(viewModel: BunnyAssistantViewModel(dependencies: dependencies))
+        case .arForest:
+            ARForestView(dependencies: dependencies)
+        case .starCatch:
+            StarCatchGameView(viewModel: StarCatchViewModel(dependencies: dependencies))
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

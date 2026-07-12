@@ -50,6 +50,8 @@ final class StoryService {
     private let missionRepository: any MissionRepository
     private let forestRepository: any ForestRepository
     private let achievementRepository: any AchievementRepository
+    private let statisticsRepository: any StatisticsRepository
+    private let recommendationEngine: LearningRecommendationEngine
     private let engine: StoryEngine
     private let cache: StoryCache
 
@@ -58,6 +60,8 @@ final class StoryService {
         missionRepository: any MissionRepository,
         forestRepository: any ForestRepository,
         achievementRepository: any AchievementRepository,
+        statisticsRepository: any StatisticsRepository,
+        recommendationEngine: LearningRecommendationEngine,
         engine: StoryEngine,
         cache: StoryCache
     ) {
@@ -65,6 +69,8 @@ final class StoryService {
         self.missionRepository = missionRepository
         self.forestRepository = forestRepository
         self.achievementRepository = achievementRepository
+        self.statisticsRepository = statisticsRepository
+        self.recommendationEngine = recommendationEngine
         self.engine = engine
         self.cache = cache
     }
@@ -77,6 +83,11 @@ final class StoryService {
         let forest = try forestRepository.forest(for: child)
         let achievements = try achievementRepository.earned(for: child)
         let favoriteActivity = try favoriteActivity(for: child) ?? plan.adventure
+        // Phase 2.8: today's recommended story theme flavors the story.
+        // Never let recommendation failure block a story — default flavor.
+        let theme = (try? statisticsRepository.performanceSummary(for: child, days: 14))
+            .map { recommendationEngine.makeDailyRecommendations(summary: $0).storyTheme }
+            ?? .friendship
         let context = StoryContext(
             childNickname: child.name,
             completedAdventure: plan.adventure,
@@ -85,7 +96,8 @@ final class StoryService {
             unlockedAnimals: animalElements(from: forest.unlockedElements),
             achievementIDs: achievements.compactMap(\.achievementID),
             favoriteActivity: favoriteActivity,
-            starsEarned: rewards.stars
+            starsEarned: rewards.stars,
+            theme: theme
         )
         let draft = engine.generateStory(context: context)
         let record = StoryRecord(
@@ -98,7 +110,8 @@ final class StoryService {
             achievementIDs: draft.achievementIDs,
             childNickname: draft.childNickname,
             favoriteActivity: draft.favoriteActivity,
-            isOfflineGenerated: true
+            isOfflineGenerated: true,
+            theme: draft.theme
         )
         try storyRepository.save(record, for: child)
         cache.store(record)

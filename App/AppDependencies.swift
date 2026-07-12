@@ -40,6 +40,7 @@ final class AppDependencies {
     let forestGrowthEngine: ForestGrowthEngine
     let achievementEngine: AchievementEngine
     let storyEngine: StoryEngine
+    let engagementEngine: EngagementEngine
     let storyCache: StoryCache
     let storyNarrator: StoryNarrator
     let storyService: StoryService
@@ -47,6 +48,7 @@ final class AppDependencies {
     let conversationEngine: ConversationEngine
     let conversationHistory: ConversationHistory
     let voiceManager: any VoiceManagerProtocol
+    let handTrackingService: any HandTrackingServiceProtocol
     let premiumStore: PremiumStore
 
     // MARK: Use Cases
@@ -58,6 +60,18 @@ final class AppDependencies {
     init(modelContainer: ModelContainer) {
         let context = modelContainer.mainContext
         self.appState = AppState()
+
+        // Hydrate persisted settings at launch (previously they only synced
+        // when the Settings screen was opened — a latent inconsistency).
+        let defaults = UserDefaults.standard
+        appState.settings.isSpeechEnabled = defaults.object(forKey: "settings.speech") as? Bool ?? true
+        appState.settings.isMusicEnabled = defaults.object(forKey: "settings.music") as? Bool ?? true
+        appState.settings.isSoundEffectsEnabled = defaults.object(forKey: "settings.effects") as? Bool ?? true
+        appState.settings.isColorBlindModeEnabled = defaults.bool(forKey: "settings.colorblind")
+        appState.settings.isEngagementAdaptationEnabled = defaults.bool(forKey: "settings.engagement")
+        appState.settings.preferredDifficulty = DifficultyPreference(
+            rawValue: defaults.string(forKey: "settings.difficulty") ?? ""
+        ) ?? .automatic
 
         // Repositories (SwiftData-backed)
         let childRepo = SwiftDataChildRepository(context: context)
@@ -77,6 +91,9 @@ final class AppDependencies {
         let sound = SoundEngine()
         let speech = SpeechService()
         let haptics = HapticsService()
+        speech.isEnabled = appState.settings.isSpeechEnabled
+        sound.isMusicEnabled = appState.settings.isMusicEnabled
+        sound.isEffectsEnabled = appState.settings.isSoundEffectsEnabled
         self.soundEngine = sound
         self.speechService = speech
         self.hapticsService = haptics
@@ -96,6 +113,8 @@ final class AppDependencies {
             missionRepository: missionRepo,
             forestRepository: forestRepo,
             achievementRepository: achievementRepo,
+            statisticsRepository: statsRepo,
+            recommendationEngine: recommendation,
             engine: storyEngine,
             cache: storyCache
         )
@@ -106,6 +125,7 @@ final class AppDependencies {
         self.forestGrowthEngine = growth
         self.achievementEngine = achievements
         self.storyEngine = storyEngine
+        self.engagementEngine = EngagementEngine()
         self.storyCache = storyCache
         self.storyNarrator = storyNarrator
         self.storyService = storyService
@@ -116,6 +136,7 @@ final class AppDependencies {
         self.conversationEngine = ConversationEngine()
         self.conversationHistory = ConversationHistory()
         self.voiceManager = VoiceManager()
+        self.handTrackingService = HandTrackingService()
 
         self.premiumStore = PremiumStore()
 
@@ -161,6 +182,8 @@ enum AppRoute: Hashable {
     case parentDashboard
     case storyHistory
     case bunnyAssistant
+    case arForest
+    case starCatch
     case settings
 }
 
@@ -171,6 +194,9 @@ struct AppSettings: Equatable {
     var isSoundEffectsEnabled = true
     var isReduceMotionEnabled = false
     var isColorBlindModeEnabled = false
+    /// Phase 2.7: interaction-based engagement adaptation. OFF by default;
+    /// requires explicit parent consent in Settings.
+    var isEngagementAdaptationEnabled = false
     var preferredDifficulty: DifficultyPreference = .automatic
     var language: AppLanguage = .system
 }

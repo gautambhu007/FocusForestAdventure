@@ -76,12 +76,12 @@ final class BunnyAssistantViewModel {
     }
 
     func onAppear() async {
-        Self.log.info("🥕 assistant onAppear (turns=\(self.history.turns.count))")
+        Self.log.debug("🥕 assistant onAppear (turns=\(self.history.turns.count))")
         // Voice hand-off: whenever listening ends (tap, silence, or the
         // recognizer finishing), the final transcript goes straight to Bunny.
         voice.onListeningFinished = { [weak self] heard in
             guard let self else { return }
-            Self.log.info("🥕 listening finished, heard \(heard.count) chars")
+            Self.log.debug("🥕 listening finished, heard \(heard.count) chars")
             let trimmed = heard.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             Task { await self.ask(trimmed) }
@@ -90,10 +90,10 @@ final class BunnyAssistantViewModel {
         let greeting = dependencies.conversationEngine.respond(
             to: .greeting, context: makeContext()
         )
-        Self.log.info("🥕 assistant greeting generated, speaking…")
+        Self.log.debug("🥕 assistant greeting generated, speaking…")
         history.append(ConversationTurn(speaker: .bunny, text: greeting))
         await dependencies.speechService.speak(greeting)
-        Self.log.info("🥕 assistant greeting spoken")
+        Self.log.debug("🥕 assistant greeting spoken")
     }
 
     /// Handles a child utterance from chips or voice.
@@ -109,26 +109,26 @@ final class BunnyAssistantViewModel {
         try? await Task.sleep(for: .seconds(0.6))
 
         let intent = dependencies.intentDetector.detect(from: trimmed)
-        Self.log.info("🥕 ask: intent=\(intent.rawValue), generating reply…")
+        Self.log.debug("🥕 ask: intent=\(intent.rawValue), generating reply…")
         let reply = dependencies.conversationEngine.respond(to: intent, context: makeContext())
         history.append(ConversationTurn(speaker: .bunny, text: reply))
         isThinking = false
-        Self.log.info("🥕 ask: speaking reply…")
+        Self.log.debug("🥕 ask: speaking reply…")
         await dependencies.speechService.speak(reply)
-        Self.log.info("🥕 ask: done")
+        Self.log.debug("🥕 ask: done")
     }
 
     // MARK: Voice input (explicit tap, on-device only)
 
     func micTapped() async {
-        Self.log.info("🥕 micTapped (isListening=\(self.voice.isListening))")
+        Self.log.debug("🥕 micTapped (isListening=\(self.voice.isListening))")
         if voice.isListening {
             finishListening()
             return
         }
         dependencies.speechService.stop()   // don't listen while Bunny talks
         guard await voice.requestPermission() else {
-            Self.log.info("🥕 micTapped: permission denied")
+            Self.log.debug("🥕 micTapped: permission denied")
             return
         }
         // The synthesizer stops on its own background queue; give it a beat
@@ -140,7 +140,7 @@ final class BunnyAssistantViewModel {
         } catch {
             Self.log.error("🥕 micTapped: startListening threw: \(error)")
         }
-        Self.log.info("🥕 micTapped: done")
+        Self.log.debug("🥕 micTapped: done")
     }
 
     private func finishListening() {

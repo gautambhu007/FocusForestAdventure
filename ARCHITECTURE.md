@@ -74,6 +74,54 @@ session-only and in-memory — never persisted — which is the data-minimizatio
 guarantee for the child's chats. Replies are spoken through the existing
 `SpeechService`, so the parent's "Bunny speaks" setting is honored.
 
+## 4c. Phase 2.3–2.8 additions
+
+**Parent dashboard & reports (2.3/2.4).** `DashboardInsights` is a pure
+aggregator (streaks, week-over-week trend) computed from the 14-day focus map.
+Teacher Mode is three pieces: `ReportBuilder` (pure summary → `ProgressReport`),
+`ReportCSVEncoder` (stable column contract, RFC-4180 escaping), and
+`ReportExporter` (`UIGraphicsPDFRenderer` → temp files shared via `ShareLink`,
+which covers AirDrop, Mail, print, and Files). Reports carry first name +
+aggregates only.
+
+**AR Forest (2.5).** `ARForestSession` (@MainActor) owns the RealityKit scene:
+tap-to-plant procedural entities (no bundled 3D assets), tap-to-water growth
+stages, periodic collectible stars. Persistence = `ARWorldMap` for
+relocalization + a JSON sidecar (`ARForestSceneState`, pure & tested) that
+re-creates entities on load — deliberately no `ARSessionDelegate`, keeping
+Swift 6 isolation trivial. Device support is gated (`isSupported`) with a
+friendly non-AR fallback.
+
+**Hand tracking (2.6).** Split by testability: `GestureEngine` + `WaveDetector`
+are pure classifiers over normalized landmarks (no Vision import);
+`HandTrackingService` runs AVCapture + `VNDetectHumanHandPoseRequest` on a
+plain serial GCD queue (same iOS 18 forced-sync rule as VoiceManager, see 4b),
+throttled to ~12 fps, publishing only gesture + pointer to @MainActor. Frames
+are processed in memory and discarded. The Star Catch mini-game treats hand
+tracking as an optional layer — every star is also tappable.
+
+**Engagement estimation (2.7 — camera-free by design).** `EngagementEngine`
+scores engagement 0…1 from interaction signals only (answer speed, slowing
+trend, consecutive misses, idle time) and maps it to pacing advice
+(keepGoing / encourage / windDown). Consent-gated: off by default, explicit
+parent opt-in in Settings, and the mission flow only ever uses it to cheer or
+end early on a celebratory note — identical mechanics to the frustration guard.
+
+**Daily recommendations (2.8).** `makeDailyRecommendations` extends the
+recommendation engine to one explainable bundle: today's mission + difficulty,
+story theme, reward emphasis, movement-break style, favorite activity, and a
+gentle session schedule — with plain-language `parentExplanations` surfaced on
+the dashboard ("What adapts next"). Cold start degrades to discovery framing.
+The bundle is consumed end to end: `StoryService` feeds the recommended
+`StoryTheme` into `StoryEngine` (one themed page per story, persisted on
+`StoryRecord`), and `MissionViewModel` uses the recommended movement break and
+passes `RewardEmphasis` to the celebration screen, which spotlights that
+reward. All recommendation failures degrade silently to the previous defaults.
+
+Gap-closing addenda: the AR forest also places procedural forest friends
+(fox), and `HandTrackingService` runs `WaveDetector` so waving at Bunny in
+Star Catch earns a wave-back and bonus stars.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).

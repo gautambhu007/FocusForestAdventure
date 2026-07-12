@@ -38,6 +38,16 @@ final class ForestViewModel {
         }
     }
 
+    func arForestTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.appState.navigationPath.append(.arForest)
+    }
+
+    func starCatchTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.appState.navigationPath.append(.starCatch)
+    }
+
     var unlocked: [ForestElement] { forest?.unlockedElements ?? [] }
     var nextUnlock: ForestElement? {
         ForestElement.allCases.first { !unlocked.contains($0) }
@@ -57,6 +67,7 @@ struct ForestView: View {
             VStack {
                 header
                 Spacer()
+                magicButtons
                 nextUnlockCard
             }
             .padding(ForestTheme.Metrics.screenPadding)
@@ -64,6 +75,34 @@ struct ForestView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.onAppear() }
+    }
+
+    /// Phase 2.5/2.6 entry points.
+    private var magicButtons: some View {
+        HStack(spacing: 10) {
+            Button {
+                viewModel.arForestTapped()
+            } label: {
+                Label(String(localized: "See in AR"), systemImage: "arkit")
+                    .font(ForestTheme.Fonts.caption)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .forestCard(cornerRadius: 16)
+            }
+            .buttonStyle(SquishyButtonStyle())
+
+            Button {
+                viewModel.starCatchTapped()
+            } label: {
+                Label(String(localized: "Star Catch"), systemImage: "star.fill")
+                    .font(ForestTheme.Fonts.caption)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .forestCard(cornerRadius: 16)
+            }
+            .buttonStyle(SquishyButtonStyle())
+        }
+        .padding(.bottom, 6)
     }
 
     private var densityForLevel: AnimatedForestBackground.Density {

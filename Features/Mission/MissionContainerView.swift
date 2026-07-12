@@ -24,7 +24,8 @@ struct MissionContainerView: View {
                     continueTitle: viewModel.pendingStory != nil
                         ? String(localized: "Story Time!")
                         : String(localized: "Wiggle Time!"),
-                    continueIcon: viewModel.pendingStory != nil ? "book.fill" : "figure.dance"
+                    continueIcon: viewModel.pendingStory != nil ? "book.fill" : "figure.dance",
+                    emphasis: viewModel.rewardEmphasis
                 ) {
                     viewModel.continueFromReward()
                 }

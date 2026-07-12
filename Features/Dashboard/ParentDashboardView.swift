@@ -20,6 +20,13 @@ final class ParentDashboardViewModel {
     private(set) var recommendations: [String] = []
     private(set) var achievements: [AchievementRecord] = []
     private(set) var childName = ""
+    /// Phase 2.3: week-over-week trend + streak (always 14-day based).
+    private(set) var insights = DashboardInsights()
+    /// Phase 2.3/2.8: what the app will adapt next, in plain language.
+    private(set) var adaptationNotes: [String] = []
+    /// Phase 2.4: export files, regenerated on each load.
+    private(set) var pdfReportURL: URL?
+    private(set) var csvReportURL: URL?
     var rangeDays = 7 {
         didSet { Task { await load() } }
     }
@@ -36,6 +43,28 @@ final class ParentDashboardViewModel {
             self.summary = summary
             self.recommendations = dependencies.recommendationEngine.parentRecommendations(summary: summary)
             self.achievements = try dependencies.achievementRepository.earned(for: child)
+
+            // Phase 2.3: trend/streak always use a 14-day window.
+            let fortnight = try dependencies.fetchStatisticsUseCase.execute(child: child, days: 14)
+            self.insights = DashboardInsights.compute(dailyFocus: fortnight.dailyFocus)
+
+            // Phase 2.8: explain what the app adapts next.
+            let daily = dependencies.recommendationEngine.makeDailyRecommendations(
+                summary: summary,
+                preference: dependencies.appState.settings.preferredDifficulty
+            )
+            self.adaptationNotes = daily.parentExplanations
+
+            // Phase 2.4: refresh shareable reports.
+            let report = ReportBuilder().makeReport(
+                childName: child.name,
+                rangeDays: rangeDays,
+                summary: summary,
+                achievements: achievements.compactMap(\.achievementID),
+                recommendations: recommendations + adaptationNotes
+            )
+            self.csvReportURL = try? ReportExporter.writeCSV(report)
+            self.pdfReportURL = try? ReportExporter.writePDF(report)
         } catch {
             assertionFailure("Dashboard load failed: \(error)")
         }
@@ -90,6 +119,25 @@ struct ParentDashboardView: View {
                                value: "\(viewModel.averageAttention)%")
             }
 
+            Section(String(localized: "This week")) {
+                LabeledContent(String(localized: "Focus this week"),
+                               value: String(localized: "\(viewModel.insights.thisWeekMinutes) min"))
+                if let trend = viewModel.insights.weeklyTrendPercent {
+                    LabeledContent(String(localized: "vs last week")) {
+                        Label("\(abs(trend))%",
+                              systemImage: trend >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .foregroundStyle(trend >= 0 ? ForestTheme.Colors.leafGreen : .orange)
+                    }
+                } else {
+                    Text(String(localized: "Trends appear after two weeks of play."))
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent(String(localized: "Play streak"),
+                               value: viewModel.insights.currentStreakDays > 0
+                                   ? String(localized: "\(viewModel.insights.currentStreakDays) day(s) 🔥")
+                                   : String(localized: "Ready for a fresh start!"))
+            }
+
             Section(String(localized: "Daily focus")) {
                 Chart(viewModel.dailyFocusPoints, id: \.day) { point in
                     BarMark(
@@ -122,6 +170,34 @@ struct ParentDashboardView: View {
                     Label(tip, systemImage: "lightbulb.fill")
                         .foregroundStyle(.primary)
                 }
+            }
+
+            Section {
+                ForEach(viewModel.adaptationNotes, id: \.self) { note in
+                    Label(note, systemImage: "wand.and.stars")
+                        .foregroundStyle(.primary)
+                }
+            } header: {
+                Text(String(localized: "What adapts next"))
+            } footer: {
+                Text(String(localized: "All personalization happens on this device, from play history only."))
+            }
+
+            Section {
+                if let pdf = viewModel.pdfReportURL {
+                    ShareLink(item: pdf) {
+                        Label(String(localized: "Share PDF report"), systemImage: "doc.richtext")
+                    }
+                }
+                if let csv = viewModel.csvReportURL {
+                    ShareLink(item: csv) {
+                        Label(String(localized: "Share CSV data"), systemImage: "tablecells")
+                    }
+                }
+            } header: {
+                Text(String(localized: "Teacher mode"))
+            } footer: {
+                Text(String(localized: "Share via AirDrop, email, or print — reports contain progress data only, no personal details beyond the first name."))
             }
 
             Section(String(localized: "Achievements")) {

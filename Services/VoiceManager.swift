@@ -87,7 +87,7 @@ final class VoiceManager: VoiceManagerProtocol {
             let supported = recognizer?.supportsOnDeviceRecognition ?? false
             let locale = recognizer?.locale.identifier ?? "nil"
             self?.recognizer = recognizer
-            Self.log.info("🥕 availability probe: onDevice=\(supported) locale=\(locale)")
+            Self.log.debug("🥕 availability probe: onDevice=\(supported) locale=\(locale)")
             Task { @MainActor [weak self] in
                 self?.isAvailable = supported
             }
@@ -101,7 +101,7 @@ final class VoiceManager: VoiceManagerProtocol {
         // built Info.plist, requesting authorization is an instant TCC crash.
         let hasSpeechKey = Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") is String
         let hasMicKey = Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") is String
-        Self.log.info("🥕 requestPermission: plist keys — speech=\(hasSpeechKey) mic=\(hasMicKey)")
+        Self.log.debug("🥕 requestPermission: plist keys — speech=\(hasSpeechKey) mic=\(hasMicKey)")
         guard hasSpeechKey, hasMicKey else {
             Self.log.error("🥕 requestPermission: USAGE KEYS MISSING FROM BUILT APP — refusing to request (would crash).")
             return false
@@ -110,7 +110,7 @@ final class VoiceManager: VoiceManagerProtocol {
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         var speechGranted = speechStatus == .authorized
         if speechStatus == .notDetermined {
-            Self.log.info("🥕 requestPermission: asking speech auth…")
+            Self.log.debug("🥕 requestPermission: asking speech auth…")
             speechGranted = await withCheckedContinuation { continuation in
                 self.workQueue.async {
                     SFSpeechRecognizer.requestAuthorization { status in
@@ -119,7 +119,7 @@ final class VoiceManager: VoiceManagerProtocol {
                 }
             }
         }
-        Self.log.info("🥕 requestPermission: speech=\(speechGranted)")
+        Self.log.debug("🥕 requestPermission: speech=\(speechGranted)")
         guard speechGranted else { return false }
 
         let micStatus = AVAudioApplication.shared.recordPermission
@@ -133,7 +133,7 @@ final class VoiceManager: VoiceManagerProtocol {
                 }
             }
         }
-        Self.log.info("🥕 requestPermission: mic=\(micGranted)")
+        Self.log.debug("🥕 requestPermission: mic=\(micGranted)")
         return micGranted
     }
 
@@ -143,7 +143,7 @@ final class VoiceManager: VoiceManagerProtocol {
         guard !isListening, isAvailable else { return }
         isListening = true   // optimistic; reverted on failure from workQueue
         transcript = ""
-        Self.log.info("🥕 startListening: dispatching to work queue…")
+        Self.log.debug("🥕 startListening: dispatching to work queue…")
 
         workQueue.async { [weak self] in
             self?.startOnWorkQueue()
@@ -153,7 +153,7 @@ final class VoiceManager: VoiceManagerProtocol {
     /// Runs entirely on `workQueue` — plain GCD, no Swift Concurrency.
     private nonisolated func startOnWorkQueue() {
         guard request == nil else {
-            Self.log.info("🥕 start(work): already running, ignoring")
+            Self.log.debug("🥕 start(work): already running, ignoring")
             return
         }
         hasNotified = false
@@ -163,13 +163,13 @@ final class VoiceManager: VoiceManagerProtocol {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, options: [.duckOthers, .defaultToSpeaker])
             try session.setActive(true)
-            Self.log.info("🥕 start(work): session active, sampleRate=\(session.sampleRate)")
+            Self.log.debug("🥕 start(work): session active, sampleRate=\(session.sampleRate)")
 
             let inputNode = audioEngine.inputNode
             inputNode.removeTap(onBus: 0)
 
             let format = inputNode.outputFormat(forBus: 0)
-            Self.log.info("🥕 start(work): input format sampleRate=\(format.sampleRate) channels=\(format.channelCount)")
+            Self.log.debug("🥕 start(work): input format sampleRate=\(format.sampleRate) channels=\(format.channelCount)")
             guard format.sampleRate > 0, format.channelCount > 0 else {
                 Self.log.error("🥕 start(work): dead input format — aborting")
                 failOnWorkQueue()
@@ -189,7 +189,7 @@ final class VoiceManager: VoiceManagerProtocol {
 
             audioEngine.prepare()
             try audioEngine.start()
-            Self.log.info("🥕 start(work): engine running, creating recognition task…")
+            Self.log.debug("🥕 start(work): engine running, creating recognition task…")
 
             task = recognizer?.recognitionTask(with: request) { [weak self] result, error in
                 // Called on SFSpeech's own queue. Extract Sendable values,
@@ -216,7 +216,7 @@ final class VoiceManager: VoiceManagerProtocol {
             // Safety net: if the child taps the mic and says nothing at all,
             // no partials ever arrive — end the session after a while.
             scheduleSilenceStopOnWorkQueue(after: 6.0)
-            Self.log.info("🥕 start(work): listening (task=\(self.task != nil))")
+            Self.log.debug("🥕 start(work): listening (task=\(self.task != nil))")
         } catch {
             Self.log.error("🥕 start(work): failed: \(error)")
             failOnWorkQueue()
@@ -224,7 +224,7 @@ final class VoiceManager: VoiceManagerProtocol {
     }
 
     func stopListening() {
-        Self.log.info("🥕 stopListening (isListening=\(self.isListening))")
+        Self.log.debug("🥕 stopListening (isListening=\(self.isListening))")
         guard isListening else { return }
         isListening = false
         workQueue.async { [weak self] in
@@ -240,7 +240,7 @@ final class VoiceManager: VoiceManagerProtocol {
         silenceWork?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.request != nil else { return }
-            Self.log.info("🥕 silence auto-stop")
+            Self.log.debug("🥕 silence auto-stop")
             self.request?.endAudio()
             self.stopOnWorkQueue()
             self.notifyOnWorkQueue()
@@ -251,7 +251,7 @@ final class VoiceManager: VoiceManagerProtocol {
 
     /// Runs on `workQueue`.
     private nonisolated func stopOnWorkQueue() {
-        Self.log.info("🥕 stop(work): engineRunning=\(self.audioEngine.isRunning)")
+        Self.log.debug("🥕 stop(work): engineRunning=\(self.audioEngine.isRunning)")
         silenceWork?.cancel()
         silenceWork = nil
         if audioEngine.isRunning {
@@ -283,7 +283,7 @@ final class VoiceManager: VoiceManagerProtocol {
 
     /// Runs on `workQueue`: hand the audio session back to the game.
     private nonisolated func restorePlaybackSessionOnWorkQueue() {
-        Self.log.info("🥕 restore playback session")
+        Self.log.debug("🥕 restore playback session")
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, options: .mixWithOthers)
         try? session.setActive(true)

@@ -15,6 +15,8 @@ struct RewardCelebrationView: View {
     /// no NavigationStack changes happen here).
     var continueTitle: String = String(localized: "Wiggle Time!")
     var continueIcon: String = "figure.dance"
+    /// Phase 2.8: reward to visually spotlight (from daily recommendations).
+    var emphasis: RewardEmphasis?
     let onContinue: () -> Void
 
     @Environment(AppState.self) private var appState
@@ -112,19 +114,22 @@ struct RewardCelebrationView: View {
 
     private var rewardRow: some View {
         HStack(spacing: 18) {
-            rewardChip("🌰", bundle.seeds, String(localized: "seeds"))
-            rewardChip("🌸", bundle.flowers, String(localized: "flowers"))
+            rewardChip("🌰", bundle.seeds, String(localized: "seeds"), spotlight: emphasis == .seeds)
+            rewardChip("🌸", bundle.flowers, String(localized: "flowers"), spotlight: false)
             if bundle.magicDust > 0 {
-                rewardChip("✨", bundle.magicDust, String(localized: "magic dust"))
+                rewardChip("✨", bundle.magicDust, String(localized: "magic dust"), spotlight: emphasis == .magicDust)
             }
         }
         .padding(16)
         .forestCard()
     }
 
-    private func rewardChip(_ emoji: String, _ count: Int, _ label: String) -> some View {
+    private func rewardChip(_ emoji: String, _ count: Int, _ label: String, spotlight: Bool) -> some View {
         VStack(spacing: 4) {
-            Text(emoji).font(.system(size: 36))
+            Text(emoji)
+                .font(.system(size: spotlight ? 44 : 36))
+                .shadow(color: spotlight ? ForestTheme.Colors.sunshine.opacity(0.8) : .clear,
+                        radius: spotlight ? 12 : 0)
             Text("+\(count)")
                 .font(ForestTheme.Fonts.body)
                 .foregroundStyle(ForestTheme.Colors.deepGreen)

@@ -190,7 +190,7 @@ final class SpeechWorker: @unchecked Sendable {
     }
 
     func enqueue(_ text: String) {
-        Self.log.info("🥕 speech enqueue")
+        Self.log.debug("🥕 speech enqueue")
         queue.async { [self] in
             // Must be .immediate: a deferred .word stop fires *later* and clears
             // the queue — including the utterance we're about to add. That bug
@@ -218,9 +218,9 @@ final class SpeechWorker: @unchecked Sendable {
     /// backgrounded, and the old cache would keep speaking robotically.
     func refreshVoice() {
         queue.async { [self] in
-            Self.log.info("🥕 speech refreshVoice: rescanning voices…")
+            Self.log.debug("🥕 speech refreshVoice: rescanning voices…")
             cachedVoice = Self.bestVoice()
-            Self.log.info("🥕 speech refreshVoice: picked \(self.cachedVoice?.name ?? "nil") quality=\(self.cachedVoice?.quality.rawValue ?? -1)")
+            Self.log.debug("🥕 speech refreshVoice: picked \(self.cachedVoice?.name ?? "nil") quality=\(self.cachedVoice?.quality.rawValue ?? -1)")
         }
     }
 

@@ -197,7 +197,14 @@ final class StoryRecord {
     var childNickname: String = ""
     var favoriteActivityRaw: String = AdventureKind.alphabet.rawValue
     var isOfflineGenerated: Bool = true
+    /// Phase 2.8: recommended story flavor used for this story.
+    var themeRaw: String = StoryTheme.friendship.rawValue
     var child: ChildProfile?
+
+    var theme: StoryTheme {
+        get { StoryTheme(rawValue: themeRaw) ?? .friendship }
+        set { themeRaw = newValue.rawValue }
+    }
 
     var pages: [String] {
         get { pagesRaw }
@@ -234,7 +241,8 @@ final class StoryRecord {
         achievementIDs: [AchievementID],
         childNickname: String,
         favoriteActivity: AdventureKind,
-        isOfflineGenerated: Bool = true
+        isOfflineGenerated: Bool = true,
+        theme: StoryTheme = .friendship
     ) {
         self.title = title
         self.pagesRaw = pages
@@ -246,6 +254,7 @@ final class StoryRecord {
         self.childNickname = childNickname
         self.favoriteActivityRaw = favoriteActivity.rawValue
         self.isOfflineGenerated = isOfflineGenerated
+        self.themeRaw = theme.rawValue
     }
 }
 

@@ -18,6 +18,7 @@ struct StoryDraft: Sendable, Equatable {
     let achievementIDs: [AchievementID]
     let childNickname: String
     let favoriteActivity: AdventureKind
+    let theme: StoryTheme
 }
 
 struct StoryContext: Sendable, Equatable {
@@ -29,6 +30,8 @@ struct StoryContext: Sendable, Equatable {
     let achievementIDs: [AchievementID]
     let favoriteActivity: AdventureKind
     let starsEarned: Int
+    /// Phase 2.8: story flavor from the daily recommendations.
+    var theme: StoryTheme = .friendship
 }
 
 struct StoryEngine: Sendable {
@@ -49,6 +52,7 @@ struct StoryEngine: Sendable {
             String(localized: "There, a friendly \(animal.name) waved from behind the leaves. \"Your focus helped the forest grow,\" the friend said."),
             String(localized: "\(treeLine) The flowers hummed a soft tune about \(favorite), because that was one of \(nickname)'s favorite ways to learn."),
             achievementLine,
+            themeLine(context.theme, nickname: nickname, animalName: animal.name),
             String(localized: "Bunny placed \(context.starsEarned) bright stars in the sky and whispered, \"Every try makes our forest stronger.\""),
             String(localized: "So \(nickname), Bunny, and the \(animal.name) promised to return for another gentle adventure soon.")
         ]
@@ -62,8 +66,23 @@ struct StoryEngine: Sendable {
             unlockedAnimals: context.unlockedAnimals,
             achievementIDs: context.achievementIDs,
             childNickname: nickname,
-            favoriteActivity: context.favoriteActivity
+            favoriteActivity: context.favoriteActivity,
+            theme: context.theme
         )
+    }
+
+    /// Phase 2.8: one page whose flavor follows the recommended story theme.
+    private func themeLine(_ theme: StoryTheme, nickname: String, animalName: String) -> String {
+        switch theme {
+        case .discovery:
+            String(localized: "\"There's so much we haven't explored!\" said the \(animalName), pointing at a path of new footprints — tomorrow, another discovery awaits.")
+        case .courage:
+            String(localized: "\"Remember,\" whispered the \(animalName), \"even tall trees started as tiny seeds. Trying again is the bravest magic of all, \(nickname).\"")
+        case .celebration:
+            String(localized: "The whole forest threw a tiny party — fireflies danced, drums of acorns rolled, all to celebrate how wonderfully \(nickname) had played today!")
+        case .friendship:
+            String(localized: "\(nickname) and the \(animalName) sat together watching the fireflies, happy just to be friends in their growing forest.")
+        }
     }
 
     private func primaryAnimal(from elements: [ForestElement]) -> (name: String, emoji: String) {

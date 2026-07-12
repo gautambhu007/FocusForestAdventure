@@ -83,6 +83,25 @@ final class StoryEngineTests: XCTestCase {
                       "The dragon is the most magical unlock and should star in the story")
     }
 
+    func testThemeChangesStoryContent() {
+        var courage = makeContext()
+        courage.theme = .courage
+        var celebration = makeContext()
+        celebration.theme = .celebration
+
+        let courageDraft = engine.generateStory(context: courage)
+        let celebrationDraft = engine.generateStory(context: celebration)
+        XCTAssertNotEqual(courageDraft.pages, celebrationDraft.pages,
+                          "Different themes must produce different stories")
+        XCTAssertEqual(courageDraft.theme, .courage)
+        XCTAssertEqual(celebrationDraft.theme, .celebration)
+    }
+
+    func testDefaultThemeIsFriendship() {
+        let draft = engine.generateStory(context: makeContext())
+        XCTAssertEqual(draft.theme, .friendship)
+    }
+
     func testStoryReflectsForestLevel() {
         let low = makeContext()
         let high = StoryContext(
