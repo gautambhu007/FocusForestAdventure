@@ -33,6 +33,9 @@ final class ChildProfile {
     @Relationship(deleteRule: .cascade, inverse: \AchievementRecord.child)
     var achievements: [AchievementRecord]? = []
 
+    @Relationship(deleteRule: .cascade, inverse: \StoryRecord.child)
+    var stories: [StoryRecord]? = []
+
     init(name: String, avatarEmoji: String = "🐰", birthYear: Int = 2021) {
         self.name = name
         self.avatarEmoji = avatarEmoji
@@ -177,6 +180,73 @@ final class SessionRecord {
     }
 
     init() {}
+}
+
+// MARK: - Story
+
+@Model
+final class StoryRecord {
+    var title: String = ""
+    var pagesRaw: [String] = []
+    var createdAt: Date = Date()
+    var adventureKindRaw: String = AdventureKind.alphabet.rawValue
+    var forestLevel: Int = 1
+    var treesPlanted: Int = 0
+    var unlockedAnimalsRaw: [String] = []
+    var achievementIDsRaw: [String] = []
+    var childNickname: String = ""
+    var favoriteActivityRaw: String = AdventureKind.alphabet.rawValue
+    var isOfflineGenerated: Bool = true
+    var child: ChildProfile?
+
+    var pages: [String] {
+        get { pagesRaw }
+        set { pagesRaw = newValue }
+    }
+
+    var adventureKind: AdventureKind {
+        get { AdventureKind(rawValue: adventureKindRaw) ?? .alphabet }
+        set { adventureKindRaw = newValue.rawValue }
+    }
+
+    var favoriteActivity: AdventureKind {
+        get { AdventureKind(rawValue: favoriteActivityRaw) ?? .alphabet }
+        set { favoriteActivityRaw = newValue.rawValue }
+    }
+
+    var unlockedAnimals: [ForestElement] {
+        get { unlockedAnimalsRaw.compactMap(ForestElement.init(rawValue:)) }
+        set { unlockedAnimalsRaw = newValue.map(\.rawValue) }
+    }
+
+    var achievementIDs: [AchievementID] {
+        get { achievementIDsRaw.compactMap(AchievementID.init(rawValue:)) }
+        set { achievementIDsRaw = newValue.map(\.rawValue) }
+    }
+
+    init(
+        title: String,
+        pages: [String],
+        adventureKind: AdventureKind,
+        forestLevel: Int,
+        treesPlanted: Int,
+        unlockedAnimals: [ForestElement],
+        achievementIDs: [AchievementID],
+        childNickname: String,
+        favoriteActivity: AdventureKind,
+        isOfflineGenerated: Bool = true
+    ) {
+        self.title = title
+        self.pagesRaw = pages
+        self.adventureKindRaw = adventureKind.rawValue
+        self.forestLevel = forestLevel
+        self.treesPlanted = treesPlanted
+        self.unlockedAnimalsRaw = unlockedAnimals.map(\.rawValue)
+        self.achievementIDsRaw = achievementIDs.map(\.rawValue)
+        self.childNickname = childNickname
+        self.favoriteActivityRaw = favoriteActivity.rawValue
+        self.isOfflineGenerated = isOfflineGenerated
+    }
 }
 
 // MARK: - Achievement

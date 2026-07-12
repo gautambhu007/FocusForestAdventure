@@ -44,6 +44,13 @@ protocol AchievementRepository {
     func award(_ id: AchievementID, to child: ChildProfile) throws
 }
 
+@MainActor
+protocol StoryRepository {
+    func save(_ story: StoryRecord, for child: ChildProfile) throws
+    func stories(for child: ChildProfile) throws -> [StoryRecord]
+    func latestStory(for child: ChildProfile) throws -> StoryRecord?
+}
+
 // MARK: - Domain value types
 
 /// Aggregated performance snapshot consumed by the AI engines and parent dashboard.
@@ -178,6 +185,26 @@ final class SwiftDataStatisticsRepository: StatisticsRepository {
     }
 
     func save() throws { try context.save() }
+}
+
+@MainActor
+final class SwiftDataStoryRepository: StoryRepository {
+    private let context: ModelContext
+    init(context: ModelContext) { self.context = context }
+
+    func save(_ story: StoryRecord, for child: ChildProfile) throws {
+        story.child = child
+        context.insert(story)
+        try context.save()
+    }
+
+    func stories(for child: ChildProfile) throws -> [StoryRecord] {
+        (child.stories ?? []).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func latestStory(for child: ChildProfile) throws -> StoryRecord? {
+        try stories(for: child).first
+    }
 }
 
 @MainActor

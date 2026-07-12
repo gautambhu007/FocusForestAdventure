@@ -27,6 +27,7 @@ final class AppDependencies {
     let forestRepository: any ForestRepository
     let statisticsRepository: any StatisticsRepository
     let achievementRepository: any AchievementRepository
+    let storyRepository: any StoryRepository
 
     // MARK: Engines & Services
     let soundEngine: any SoundEngineProtocol
@@ -38,6 +39,10 @@ final class AppDependencies {
     let rewardEngine: RewardEngine
     let forestGrowthEngine: ForestGrowthEngine
     let achievementEngine: AchievementEngine
+    let storyEngine: StoryEngine
+    let storyCache: StoryCache
+    let storyNarrator: StoryNarrator
+    let storyService: StoryService
     let premiumStore: PremiumStore
 
     // MARK: Use Cases
@@ -55,12 +60,14 @@ final class AppDependencies {
         let missionRepo = SwiftDataMissionRepository(context: context)
         let forestRepo = SwiftDataForestRepository(context: context)
         let statsRepo = SwiftDataStatisticsRepository(context: context)
+        let storyRepo = SwiftDataStoryRepository(context: context)
         let achievementRepo = SwiftDataAchievementRepository(context: context)
         self.childRepository = childRepo
         self.missionRepository = missionRepo
         self.forestRepository = forestRepo
         self.statisticsRepository = statsRepo
         self.achievementRepository = achievementRepo
+        self.storyRepository = storyRepo
 
         // Services
         let sound = SoundEngine()
@@ -77,12 +84,27 @@ final class AppDependencies {
         let reward = RewardEngine()
         let growth = ForestGrowthEngine()
         let achievements = AchievementEngine(repository: achievementRepo)
+        let storyEngine = StoryEngine()
+        let storyCache = StoryCache()
+        let storyNarrator = StoryNarrator(speechService: speech)
+        let storyService = StoryService(
+            storyRepository: storyRepo,
+            missionRepository: missionRepo,
+            forestRepository: forestRepo,
+            achievementRepository: achievementRepo,
+            engine: storyEngine,
+            cache: storyCache
+        )
         self.difficultyEngine = difficulty
         self.recommendationEngine = recommendation
         self.missionGenerator = generator
         self.rewardEngine = reward
         self.forestGrowthEngine = growth
         self.achievementEngine = achievements
+        self.storyEngine = storyEngine
+        self.storyCache = storyCache
+        self.storyNarrator = storyNarrator
+        self.storyService = storyService
         self.premiumStore = PremiumStore()
 
         // Use cases
@@ -125,6 +147,7 @@ enum AppRoute: Hashable {
     case forest
     case parentGate
     case parentDashboard
+    case storyHistory
     case settings
 }
 

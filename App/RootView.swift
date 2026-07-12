@@ -58,6 +58,8 @@ struct RootView: View {
             ParentGateView(dependencies: dependencies)
         case .parentDashboard:
             ParentDashboardView(viewModel: ParentDashboardViewModel(dependencies: dependencies))
+        case .storyHistory:
+            StoryHistory(viewModel: StoryHistoryViewModel(dependencies: dependencies))
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

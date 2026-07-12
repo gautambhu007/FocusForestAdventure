@@ -13,6 +13,8 @@ struct RewardCelebrationView: View {
     let dependencies: AppDependencies
     /// Advances the mission flow (rendered inside MissionContainerView —
     /// no NavigationStack changes happen here).
+    var continueTitle: String = String(localized: "Wiggle Time!")
+    var continueIcon: String = "figure.dance"
     let onContinue: () -> Void
 
     @Environment(AppState.self) private var appState
@@ -71,8 +73,8 @@ struct RewardCelebrationView: View {
         // Pinned outside the scroll content — always visible, always tappable.
         .safeAreaInset(edge: .bottom) {
             BigBouncyButton(
-                title: String(localized: "Wiggle Time!"),
-                icon: "figure.dance",
+                title: continueTitle,
+                icon: continueIcon,
                 color: ForestTheme.Colors.leafGreen
             ) {
                 onContinue()

@@ -14,6 +14,7 @@ enum ModelContainerFactory {
         ForestState.self,
         DailyGoal.self,
         SessionRecord.self,
+        StoryRecord.self,
         AchievementRecord.self
     ])
 
