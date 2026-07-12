@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D20401AA300374DC00037232 /* Phase2DevelopmentPlan.md in Resources */ = {isa = PBXBuildFile; fileRef = D20401A9300374DC00037232 /* Phase2DevelopmentPlan.md */; };
 		D2F7DB7C3003508D008EFCD1 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = E10000000000000000000002 /* Lottie */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +24,7 @@
 /* Begin PBXFileReference section */
 		A10000000000000000000002 /* FocusForestAdventure.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FocusForestAdventure.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000004 /* FocusForestAdventureTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FocusForestAdventureTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D20401A9300374DC00037232 /* Phase2DevelopmentPlan.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Phase2DevelopmentPlan.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -111,6 +113,7 @@
 				B10000000000000000000009 /* Resources */,
 				B10000000000000000000010 /* Tests/UnitTests */,
 				B00000000000000000000011 /* Products */,
+				D20401A9300374DC00037232 /* Phase2DevelopmentPlan.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -227,6 +230,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D20401AA300374DC00037232 /* Phase2DevelopmentPlan.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,6 +440,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TZK7R8G7MG;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.focusforest.adventure.tests;
@@ -452,6 +457,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TZK7R8G7MG;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.focusforest.adventure.tests;
