@@ -46,6 +46,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.focusforest.adventure
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        # Phase 2.2 Bunny assistant voice input (on-device only, tap-to-talk).
+        # AppInfo.plist is merged into the generated Info.plist and carries the
+        # privacy usage descriptions — keep both mechanisms in sync.
+        INFOPLIST_FILE: AppInfo.plist
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "The microphone lets your child talk to Bunny. Audio is processed on this device only and is never recorded or sent anywhere."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Speech recognition runs on this device only, so Bunny can understand what your child says. Nothing is sent to a server."
         CODE_SIGN_ENTITLEMENTS: Resources/FocusForestAdventure.entitlements
 
   ForestWidgetExtension:

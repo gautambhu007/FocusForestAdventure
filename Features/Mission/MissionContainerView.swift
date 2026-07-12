@@ -18,10 +18,27 @@ struct MissionContainerView: View {
                 playingView
                     .transition(.opacity)
             case .reward(let bundle):
-                RewardCelebrationView(bundle: bundle, dependencies: viewModel.dependencies) {
-                    viewModel.continueToMovementBreak()
+                RewardCelebrationView(
+                    bundle: bundle,
+                    dependencies: viewModel.dependencies,
+                    continueTitle: viewModel.pendingStory != nil
+                        ? String(localized: "Story Time!")
+                        : String(localized: "Wiggle Time!"),
+                    continueIcon: viewModel.pendingStory != nil ? "book.fill" : "figure.dance"
+                ) {
+                    viewModel.continueFromReward()
                 }
                 .transition(.opacity.combined(with: .scale(scale: 1.04)))
+            case .story:
+                if let story = viewModel.pendingStory {
+                    StoryView(story: story, dependencies: viewModel.dependencies) {
+                        viewModel.continueToMovementBreak()
+                    }
+                    .transition(.opacity)
+                } else {
+                    // Defensive: no story available — skip ahead.
+                    Color.clear.onAppear { viewModel.continueToMovementBreak() }
+                }
             case .movementBreak(let activity):
                 MovementBreakView(activity: activity, dependencies: viewModel.dependencies)
                     .transition(.opacity)

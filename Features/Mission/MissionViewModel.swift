@@ -23,18 +23,25 @@ final class MissionViewModel {
     private(set) var isFinishing = false
     private(set) var progress: Double = 0
 
-    /// The mission flow (play → reward → movement break) lives INSIDE one
-    /// navigation destination. Replacing NavigationStack path entries
+    /// The mission flow (play → reward → story → movement break) lives INSIDE
+    /// one navigation destination. Replacing NavigationStack path entries
     /// mid-transition puts the stack in a broken state where later path
     /// changes are ignored (frozen screen, dead buttons) — so we don't.
+    /// `.story` is a marker case: the record itself lives in `pendingStory`
+    /// (SwiftData models aren't Equatable, so it can't be an associated value).
     enum MissionPhase: Equatable {
         case playing
         case reward(RewardBundle)
+        case story
         case movementBreak(MovementBreak)
     }
 
     private(set) var phase: MissionPhase = .playing
     private var pendingBreak: MovementBreak = .random()
+
+    /// Story generated after mission completion (Phase 2.1). Nil when
+    /// generation failed — the flow then skips straight to the movement break.
+    private(set) var pendingStory: StoryRecord?
 
     enum Feedback: Equatable { case none, correct, tryAgain }
 
@@ -171,6 +178,11 @@ final class MissionViewModel {
                 endedEarly: endedEarly,
                 elapsed: Date().timeIntervalSince(missionStartedAt)
             )
+            // Phase 2.1: Bunny writes a story from today's progress. Story
+            // failure must never block the celebration — fall back silently.
+            pendingStory = try? dependencies.storyService.generateStory(
+                after: plan, child: child, rewards: result.rewards
+            )
             // Same screen, new phase — no NavigationStack surgery.
             pendingBreak = result.movementBreak
             phase = .reward(result.rewards)
@@ -179,7 +191,17 @@ final class MissionViewModel {
         }
     }
 
-    /// "Wiggle Time!" on the reward screen.
+    /// Continue button on the reward screen: story first when Bunny has one,
+    /// otherwise straight to the movement break.
+    func continueFromReward() {
+        if pendingStory != nil {
+            phase = .story
+        } else {
+            phase = .movementBreak(pendingBreak)
+        }
+    }
+
+    /// "Wiggle Time!" — from the story reader (or reward screen fallback).
     func continueToMovementBreak() {
         phase = .movementBreak(pendingBreak)
     }

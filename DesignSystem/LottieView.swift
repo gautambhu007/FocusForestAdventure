@@ -28,6 +28,17 @@ enum ForestAnimation: String, CaseIterable {
     case chestOpen      = "chest_open"
     case confettiBig    = "confetti_big"
 
+    /// True when the JSON file actually shipped in the bundle. Checked once
+    /// and cached — bundle contents can't change at runtime. Skipping Lottie
+    /// for missing files avoids an "assetNotFound" console error per view.
+    var isBundled: Bool { Self.bundledNames.contains(rawValue) }
+
+    private static let bundledNames: Set<String> = Set(
+        allCases.map(\.rawValue).filter {
+            Bundle.main.url(forResource: $0, withExtension: "json") != nil
+        }
+    )
+
     /// Placeholder shown when the JSON asset hasn't been added yet.
     var fallbackSymbol: String {
         switch self {
@@ -55,12 +66,16 @@ struct LottieView: View {
 
     var body: some View {
         #if canImport(Lottie)
-        LottieBridge(
-            name: animation.rawValue,
-            loopMode: reduceMotion ? .playOnce : loopMode,
-            speed: reduceMotion ? 0.0 : speed,
-            fallbackSymbol: animation.fallbackSymbol
-        )
+        if animation.isBundled {
+            LottieBridge(
+                name: animation.rawValue,
+                loopMode: reduceMotion ? .playOnce : loopMode,
+                speed: reduceMotion ? 0.0 : speed,
+                fallbackSymbol: animation.fallbackSymbol
+            )
+        } else {
+            fallback
+        }
         #else
         fallback
         #endif

@@ -390,6 +390,9 @@
 				DEVELOPMENT_TEAM = TZK7R8G7MG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AppInfo.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "The microphone lets your child talk to Bunny. Audio is processed on this device only and is never recorded or sent anywhere.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Speech recognition runs on this device only, so Bunny can understand what your child says. Nothing is sent to a server.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -417,6 +420,9 @@
 				DEVELOPMENT_TEAM = TZK7R8G7MG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AppInfo.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "The microphone lets your child talk to Bunny. Audio is processed on this device only and is never recorded or sent anywhere.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Speech recognition runs on this device only, so Bunny can understand what your child says. Nothing is sent to a server.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

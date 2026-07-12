@@ -10,6 +10,7 @@ import Foundation
 import AVFoundation
 import AudioToolbox
 import CoreHaptics
+import os
 
 // MARK: - Sound
 
@@ -128,8 +129,15 @@ final class SoundEngine: SoundEngineProtocol {
 @MainActor
 protocol SpeechServiceProtocol: AnyObject {
     var isEnabled: Bool { get set }
+    /// True when an enhanced/premium (natural-sounding) voice is installed
+    /// for the user's language. False means iOS will use the compact
+    /// (robotic) voice — the UI can then point parents at the voice download.
+    var hasNaturalVoice: Bool { get }
     func speak(_ text: String) async
     func stop()
+    /// Re-scan installed voices (call on foreground: the user may have just
+    /// downloaded a better voice in Settings — no relaunch required).
+    func refreshVoice()
 }
 
 @MainActor
@@ -138,6 +146,8 @@ final class SpeechService: SpeechServiceProtocol {
     var isEnabled = true
     private let worker = SpeechWorker()
 
+    var hasNaturalVoice: Bool { SpeechWorker.hasNaturalVoiceInstalled() }
+
     func speak(_ text: String) async {
         guard isEnabled else { return }
         worker.enqueue(text)   // returns immediately; synthesis runs off-main
@@ -145,6 +155,10 @@ final class SpeechService: SpeechServiceProtocol {
 
     func stop() {
         worker.stop()
+    }
+
+    func refreshVoice() {
+        worker.refreshVoice()
     }
 }
 
@@ -155,6 +169,8 @@ final class SpeechService: SpeechServiceProtocol {
 /// on this queue means the UI can never freeze on speech, and the prewarm in
 /// `init` pays that loading cost at launch, behind the splash screen.
 final class SpeechWorker: @unchecked Sendable {
+
+    private static let log = Logger(subsystem: "com.focusforest.adventure", category: "speech")
 
     private let queue = DispatchQueue(label: "com.focusforest.speech", qos: .userInitiated)
     private let synthesizer = AVSpeechSynthesizer()
@@ -174,6 +190,7 @@ final class SpeechWorker: @unchecked Sendable {
     }
 
     func enqueue(_ text: String) {
+        Self.log.info("🥕 speech enqueue")
         queue.async { [self] in
             // Must be .immediate: a deferred .word stop fires *later* and clears
             // the queue — including the utterance we're about to add. That bug
@@ -196,6 +213,28 @@ final class SpeechWorker: @unchecked Sendable {
         }
     }
 
+    /// Re-rank installed voices. Cheap enough to run on every foreground:
+    /// the user may have downloaded an enhanced voice while the app was
+    /// backgrounded, and the old cache would keep speaking robotically.
+    func refreshVoice() {
+        queue.async { [self] in
+            Self.log.info("🥕 speech refreshVoice: rescanning voices…")
+            cachedVoice = Self.bestVoice()
+            Self.log.info("🥕 speech refreshVoice: picked \(self.cachedVoice?.name ?? "nil") quality=\(self.cachedVoice?.quality.rawValue ?? -1)")
+        }
+    }
+
+    /// True when at least one enhanced/premium voice exists for the user's
+    /// language — i.e. speech won't fall back to the compact robotic voice.
+    static func hasNaturalVoiceInstalled() -> Bool {
+        let preferred = Locale.preferredLanguages.first ?? "en-US"
+        let langPrefix = String(preferred.prefix(2))
+        return AVSpeechSynthesisVoice.speechVoices().contains { voice in
+            voice.language.hasPrefix(langPrefix)
+                && (voice.quality == .enhanced || voice.quality == .premium)
+        }
+    }
+
     /// Picks the most natural installed voice for the user's language.
     ///
     /// `AVSpeechSynthesisVoice(language:)` returns the *compact* voice — the
@@ -209,6 +248,12 @@ final class SpeechWorker: @unchecked Sendable {
 
         let candidates = AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language.hasPrefix(langPrefix) }
+            // Novelty voices ("Bells", "Bubbles"…) and Personal Voice can
+            // outrank real voices by quality; neither belongs in a kids' app.
+            .filter { voice in
+                !voice.voiceTraits.contains(.isNoveltyVoice)
+                    && !voice.voiceTraits.contains(.isPersonalVoice)
+            }
 
         func rank(_ voice: AVSpeechSynthesisVoice) -> Int {
             var score = 0

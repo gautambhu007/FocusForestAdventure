@@ -42,6 +42,38 @@ but still injected, never accessed statically).
 | Movement after focus | mandatory 30s `MovementBreakView` between missions |
 | Effort > outcome | seeds scale with questions attempted, not accuracy |
 
+## 4a. Post-mission story flow (Phase 2.1)
+
+Mission completion runs `Mission → Reward → StoryReader → MovementBreak`, all as
+phases inside `MissionContainerView` (single navigation destination — see the
+`MissionPhase` note about NavigationStack stability). After
+`CompleteMissionUseCase` succeeds, `MissionViewModel` asks `StoryService` to
+generate and persist a `StoryRecord` from local progress signals only (nickname,
+forest level, trees, unlocked animals, achievements, favorite activity). Story
+generation is offline and deterministic (`StoryEngine`); failure is silent — the
+flow simply skips to the movement break. `.story` is a marker phase because
+SwiftData models aren't `Equatable`; the record travels in
+`MissionViewModel.pendingStory`. Past stories are listed in `StoryHistory` and
+narrated by `StoryNarrator` through the shared speech service.
+
+## 4b. Bunny assistant (Phase 2.2)
+
+Conversation is fully offline and fully curated. `IntentDetector` (pure,
+keyword-based) maps an utterance to a coarse `BunnyIntent`; `ConversationEngine`
+(pure) picks a reply from hand-written, age-appropriate catalogs — there is no
+open-ended generation, so Bunny can never say something unreviewed. Safety
+ordering: distress keywords ("sad", "scared"…) outrank every other intent and
+answer with comfort plus a gentle "tell a grown-up" nudge; unknown input gets a
+friendly redirect, never a made-up answer.
+
+Voice input (`VoiceManager`) is tap-to-talk, requires explicit permission, and
+uses **on-device recognition only** (`requiresOnDeviceRecognition = true`); if
+the device/language can't do on-device, the mic is hidden and tap-to-ask chips
+carry the whole interaction. Conversations (`ConversationHistory`) are
+session-only and in-memory — never persisted — which is the data-minimization
+guarantee for the child's chats. Replies are spoken through the existing
+`SpeechService`, so the parent's "Bunny speaks" setting is honored.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).

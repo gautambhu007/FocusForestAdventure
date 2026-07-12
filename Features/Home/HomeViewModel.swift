@@ -69,6 +69,12 @@ final class HomeViewModel {
         dependencies.appState.navigationPath.append(.forest)
     }
 
+    func talkToBunnyTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        dependencies.appState.navigationPath.append(.bunnyAssistant)
+    }
+
     func magicChestTapped() {
         dependencies.hapticsService.playSuccess()
         dependencies.soundEngine.play(.chestOpen)

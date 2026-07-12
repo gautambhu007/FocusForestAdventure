@@ -52,6 +52,11 @@ final class SettingsViewModel {
         }
     }
 
+    /// False when only the compact (robotic) system voice is installed.
+    var hasNaturalVoice: Bool {
+        dependencies.speechService.hasNaturalVoice
+    }
+
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
         let defaults = UserDefaults.standard
@@ -76,10 +81,18 @@ struct SettingsView: View {
         @Bindable var viewModel = viewModel
 
         Form {
-            Section(String(localized: "Bunny's Voice & Sound")) {
+            Section {
                 Toggle(String(localized: "Bunny speaks"), isOn: $viewModel.isSpeechEnabled)
                 Toggle(String(localized: "Music"), isOn: $viewModel.isMusicEnabled)
                 Toggle(String(localized: "Sound effects"), isOn: $viewModel.isSoundEffectsEnabled)
+            } header: {
+                Text(String(localized: "Bunny's Voice & Sound"))
+            } footer: {
+                if !viewModel.hasNaturalVoice {
+                    // iOS only ships the compact (robotic) voice; apps can't
+                    // download better ones. Point parents at the free download.
+                    Text(String(localized: "Bunny's voice sounds much more natural with an Enhanced voice. It's a free download: open the Settings app → Accessibility → Spoken Content → Voices, pick your language, and download an Enhanced or Premium voice. Bunny will use it automatically."))
+                }
             }
 
             Section {

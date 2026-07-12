@@ -43,6 +43,10 @@ final class AppDependencies {
     let storyCache: StoryCache
     let storyNarrator: StoryNarrator
     let storyService: StoryService
+    let intentDetector: IntentDetector
+    let conversationEngine: ConversationEngine
+    let conversationHistory: ConversationHistory
+    let voiceManager: any VoiceManagerProtocol
     let premiumStore: PremiumStore
 
     // MARK: Use Cases
@@ -105,6 +109,14 @@ final class AppDependencies {
         self.storyCache = storyCache
         self.storyNarrator = storyNarrator
         self.storyService = storyService
+
+        // Phase 2.2 Bunny assistant (all offline: engines are pure values,
+        // history is session-only, voice recognition is on-device)
+        self.intentDetector = IntentDetector()
+        self.conversationEngine = ConversationEngine()
+        self.conversationHistory = ConversationHistory()
+        self.voiceManager = VoiceManager()
+
         self.premiumStore = PremiumStore()
 
         // Use cases
@@ -148,6 +160,7 @@ enum AppRoute: Hashable {
     case parentGate
     case parentDashboard
     case storyHistory
+    case bunnyAssistant
     case settings
 }
 

@@ -184,7 +184,7 @@ enum BunnyPhrase {
         switch self {
         case .welcome:
             [String(localized: "Hello Explorer! I'm so happy to see you!"),
-             String(localized: "Welcome back, my friend!")].randomElement()!
+             String(localized: "Welcome back Mr Reyaansh!")].randomElement()!
         case .missionStart:
             [String(localized: "Let's go on an adventure!"),
              String(localized: "Ooh, this will be fun!")].randomElement()!
