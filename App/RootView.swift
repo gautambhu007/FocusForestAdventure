@@ -83,7 +83,7 @@ struct RootView: View {
         case .moralStories:
             MoralStoriesView(dependencies: dependencies)
         case .hindiTracing:
-            HindiTracingView(dependencies: dependencies)
+            HindiTracingWorkbookView(dependencies: dependencies)
         case .clockGame:
             ClockGameView(dependencies: dependencies)
         case .learningRewards:

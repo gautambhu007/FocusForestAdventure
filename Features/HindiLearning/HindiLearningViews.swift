@@ -31,8 +31,12 @@ enum LearningProgress {
     }
 
     /// Total stars across the whole learning platform — the coin economy.
+    /// Each traced letter also earns one star.
     static func totalStars() -> Int {
-        allQuizIDs.reduce(0) { $0 + bestScore(for: $1) }
+        let quizStars = allQuizIDs.reduce(0) { $0 + bestScore(for: $1) }
+        let tracingStars = TracingWorkbook.sections.flatMap(\.letters)
+            .filter(TracingProgress.isCompleted).count
+        return quizStars + tracingStars
     }
 
     /// Badge tiers for the rewards screen.
@@ -96,6 +100,35 @@ struct LearningRewardsView: View {
                             .forestCard(cornerRadius: 20)
                         }
                     }
+                    .padding(.horizontal, 4)
+
+                    // Handwriting master award (all 12 tracing sections done)
+                    let masterEarned = TracingProgress.overallProgress() >= 1.0
+                    HStack(spacing: 14) {
+                        Text("📜")
+                            .font(.system(size: 40))
+                            .grayscale(masterEarned ? 0 : 1)
+                            .opacity(masterEarned ? 1 : 0.45)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(String(localized: "Hindi Alphabet Master"))
+                                .font(ForestTheme.Fonts.body)
+                                .foregroundStyle(ForestTheme.Colors.deepGreen)
+                            Text(masterEarned
+                                 ? String(localized: "All 12 writing sections completed! 🎉")
+                                 : String(localized: "Trace all letters in ✍️ Letter Tracing"))
+                                .font(ForestTheme.Fonts.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if masterEarned {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(ForestTheme.Colors.leafGreen)
+                                .font(.title2)
+                        }
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .forestCard(cornerRadius: 20)
                     .padding(.horizontal, 4)
 
                     Text(String(localized: "Play quizzes in any category to earn more stars!"))
