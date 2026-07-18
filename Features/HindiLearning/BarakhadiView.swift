@@ -27,12 +27,135 @@ struct BarakhadiView: View {
     @State private var selected = 0
     @State private var tappedForm: String?
 
+    // Quiz mode
+    @State private var isQuizzing = false
+    @State private var quizRound = 0
+    @State private var quizScore = 0
+    @State private var quizTarget = ""
+    @State private var quizChoices: [String] = []
+    @State private var quizDone = false
+    @State private var shakingChoice: String?
+
     private let columns = [GridItem(.adaptive(minimum: 80, maximum: 120), spacing: 12)]
 
     var body: some View {
         ZStack {
             ForestTheme.Gradients.morningSky.ignoresSafeArea()
 
+            if isQuizzing {
+                quizView
+            } else {
+                chartView
+            }
+        }
+        .navigationTitle(String(localized: "बारहखड़ी · Barakhadi"))
+        .navigationBarTitleDisplayMode(.inline)
+        .onDisappear { dependencies.speechService.stop() }
+    }
+
+    // MARK: Quiz mode ("listen and find the form")
+
+    private var quizView: some View {
+        VStack(spacing: 18) {
+            if quizDone {
+                ConfettiView(particleCount: 50).ignoresSafeArea().allowsHitTesting(false)
+                Text(String(localized: "You earned \(quizScore) of 5 stars!"))
+                    .font(ForestTheme.Fonts.title)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .multilineTextAlignment(.center)
+                BigBouncyButton(title: String(localized: "Back to chart"),
+                                icon: "square.grid.3x3.fill",
+                                color: ForestTheme.Colors.sunshine) {
+                    isQuizzing = false
+                }
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(0..<5, id: \.self) { star in
+                        Image(systemName: star < quizScore ? "star.fill" : "star")
+                            .foregroundStyle(ForestTheme.Colors.sunshine)
+                    }
+                }
+
+                Text(String(localized: "Listen! Find the matching sound"))
+                    .font(ForestTheme.Fonts.heading)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+
+                Button {
+                    speak(quizTarget)
+                } label: {
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.white)
+                        .frame(width: 80, height: 80)
+                        .background(Circle().fill(ForestTheme.Colors.leafGreen))
+                }
+                .buttonStyle(SquishyButtonStyle())
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 14)], spacing: 14) {
+                    ForEach(quizChoices, id: \.self) { choice in
+                        Button {
+                            quizTapped(choice)
+                        } label: {
+                            Text(choice)
+                                .font(.system(size: 44, weight: .heavy, design: .rounded))
+                                .foregroundStyle(ForestTheme.Colors.deepGreen)
+                                .frame(maxWidth: .infinity, minHeight: 96)
+                                .forestCard(cornerRadius: 20)
+                        }
+                        .buttonStyle(SquishyButtonStyle())
+                        .gentleShake(trigger: shakingChoice == choice)
+                        .accessibilityLabel(choice)
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+        }
+        .adaptiveContentWidth(600)
+    }
+
+    private func startQuiz() {
+        quizRound = 0
+        quizScore = 0
+        quizDone = false
+        isQuizzing = true
+        nextQuizRound()
+    }
+
+    private func nextQuizRound() {
+        guard quizRound < 5 else {
+            LearningProgress.recordScore(quizScore, for: "barakhadi")
+            dependencies.hapticsService.playSuccess()
+            quizDone = true
+            return
+        }
+        quizRound += 1
+        // One consonant, four of its matra forms — hear one, find it.
+        let consonant = consonants.randomElement()!.letter
+        let forms = Self.matras.shuffled().prefix(4).map { consonant + $0.mark }
+        quizChoices = Array(forms)
+        quizTarget = forms.randomElement()!
+        speak(quizTarget)
+    }
+
+    private func quizTapped(_ choice: String) {
+        if choice == quizTarget {
+            quizScore += 1
+            dependencies.hapticsService.playSuccess()
+            dependencies.soundEngine.play(.starEarned)
+            nextQuizRound()
+        } else {
+            shakingChoice = choice
+            dependencies.hapticsService.playSoftWobble()
+            Task {
+                try? await Task.sleep(for: .seconds(0.5))
+                shakingChoice = nil
+            }
+        }
+    }
+
+    // MARK: Chart mode
+
+    private var chartView: some View {
             VStack(spacing: 12) {
                 // Consonant picker
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -91,11 +214,17 @@ struct BarakhadiView: View {
                     .padding(ForestTheme.Metrics.screenPadding)
                     .adaptiveContentWidth(700)
                 }
+
+                BigBouncyButton(
+                    title: String(localized: "Practice Quiz!"),
+                    icon: "star.fill",
+                    color: ForestTheme.Colors.sunshine
+                ) {
+                    dependencies.speechService.stop()
+                    startQuiz()
+                }
+                .padding(.bottom, 14)
             }
-        }
-        .navigationTitle(String(localized: "बारहखड़ी · Barakhadi"))
-        .navigationBarTitleDisplayMode(.inline)
-        .onDisappear { dependencies.speechService.stop() }
     }
 
     private func romanized(_ matra: (mark: String, roman: String)) -> String {

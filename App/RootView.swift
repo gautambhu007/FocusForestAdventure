@@ -82,6 +82,12 @@ struct RootView: View {
             RhymesView(dependencies: dependencies)
         case .moralStories:
             MoralStoriesView(dependencies: dependencies)
+        case .hindiTracing:
+            HindiTracingView(dependencies: dependencies)
+        case .clockGame:
+            ClockGameView(dependencies: dependencies)
+        case .learningRewards:
+            LearningRewardsView(dependencies: dependencies)
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

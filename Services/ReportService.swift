@@ -130,6 +130,46 @@ enum ReportExporter {
         FileManager.default.temporaryDirectory.appendingPathComponent(name)
     }
 
+    // MARK: Achievement certificate
+
+    /// A printable certificate for the child's Hindi learning stars.
+    static func writeCertificate(childName: String, stars: Int) throws -> URL {
+        let url = exportURL(named: "FocusForest-Certificate.pdf")
+        try renderCertificate(childName: childName, stars: stars).write(to: url, options: .atomic)
+        return url
+    }
+
+    private static func renderCertificate(childName: String, stars: Int) -> Data {
+        let page = CGRect(x: 0, y: 0, width: 842, height: 595)   // A4 landscape
+        let renderer = UIGraphicsPDFRenderer(bounds: page)
+
+        func drawCentered(_ text: String, font: UIFont, y: CGFloat, color: UIColor = .darkText) {
+            let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+            let size = (text as NSString).size(withAttributes: attributes)
+            (text as NSString).draw(at: CGPoint(x: (page.width - size.width) / 2, y: y),
+                                    withAttributes: attributes)
+        }
+
+        return renderer.pdfData { context in
+            context.beginPage()
+            // Decorative double border
+            let green = UIColor(red: 0.13, green: 0.42, blue: 0.30, alpha: 1)
+            green.setStroke()
+            let outer = UIBezierPath(rect: page.insetBy(dx: 24, dy: 24)); outer.lineWidth = 4; outer.stroke()
+            let inner = UIBezierPath(rect: page.insetBy(dx: 34, dy: 34)); inner.lineWidth = 1.5; inner.stroke()
+
+            drawCentered("🐰 🌟 🐰", font: .systemFont(ofSize: 34), y: 70)
+            drawCentered("Certificate of Achievement", font: .systemFont(ofSize: 40, weight: .heavy), y: 120, color: green)
+            drawCentered("प्रमाण पत्र", font: .systemFont(ofSize: 22, weight: .semibold), y: 172, color: green)
+            drawCentered("This certificate is proudly presented to", font: .systemFont(ofSize: 18), y: 230)
+            drawCentered(childName, font: .systemFont(ofSize: 44, weight: .bold), y: 265, color: green)
+            drawCentered("for earning \(stars) stars while learning Hindi", font: .systemFont(ofSize: 20), y: 340)
+            drawCentered("शाबाश! Keep exploring, keep growing! 🌳", font: .systemFont(ofSize: 18), y: 380)
+            let date = Date().formatted(date: .long, time: .omitted)
+            drawCentered("Focus Forest Adventure · \(date)", font: .systemFont(ofSize: 14), y: 480, color: .gray)
+        }
+    }
+
     /// Single-page A4 summary. Kept deliberately simple: headline numbers,
     /// per-subject table, achievements, recommendations.
     private static func renderPDF(_ report: ProgressReport) -> Data {

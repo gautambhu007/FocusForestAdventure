@@ -217,6 +217,14 @@ struct ParentDashboardView: View {
                         Label(String(localized: "Share CSV data"), systemImage: "tablecells")
                     }
                 }
+                if let certificate = try? ReportExporter.writeCertificate(
+                    childName: viewModel.childName.isEmpty ? String(localized: "Explorer") : viewModel.childName,
+                    stars: LearningProgress.totalStars()
+                ) {
+                    ShareLink(item: certificate) {
+                        Label(String(localized: "Print achievement certificate"), systemImage: "rosette")
+                    }
+                }
             } header: {
                 Text(String(localized: "Teacher mode"))
             } footer: {

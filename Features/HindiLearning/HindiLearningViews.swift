@@ -22,6 +22,94 @@ enum LearningProgress {
             UserDefaults.standard.set(score, forKey: "hindi.quizBest.\(moduleID)")
         }
     }
+
+    /// Every quiz surface that can earn stars.
+    static var allQuizIDs: [String] {
+        HindiLearningCatalog.modules.map(\.id)
+            + ["clock", "barakhadi"]
+            + (2...20).map { "table\($0)" }
+    }
+
+    /// Total stars across the whole learning platform — the coin economy.
+    static func totalStars() -> Int {
+        allQuizIDs.reduce(0) { $0 + bestScore(for: $1) }
+    }
+
+    /// Badge tiers for the rewards screen.
+    static let badges: [(threshold: Int, emoji: String, title: String)] = [
+        (5, "🥉", String(localized: "First Steps")),
+        (15, "🥈", String(localized: "Star Collector")),
+        (30, "🥇", String(localized: "Hindi Hero")),
+        (60, "🏆", String(localized: "Vidya Champion")),
+        (100, "👑", String(localized: "Grand Master"))
+    ]
+}
+
+// MARK: - Rewards screen (stars + badges)
+
+struct LearningRewardsView: View {
+    let dependencies: AppDependencies
+
+    private var stars: Int { LearningProgress.totalStars() }
+
+    var body: some View {
+        ZStack {
+            ForestTheme.Gradients.sunset.ignoresSafeArea()
+            MagicDustView().ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 18) {
+                    Text("⭐")
+                        .font(.system(size: 80))
+                        .floating(amplitude: 8, period: 1.8)
+                    Text(String(localized: "\(stars) stars earned!"))
+                        .font(ForestTheme.Fonts.title)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+
+                    VStack(spacing: 12) {
+                        ForEach(LearningProgress.badges, id: \.threshold) { badge in
+                            let earned = stars >= badge.threshold
+                            HStack(spacing: 14) {
+                                Text(badge.emoji)
+                                    .font(.system(size: 40))
+                                    .grayscale(earned ? 0 : 1)
+                                    .opacity(earned ? 1 : 0.45)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(badge.title)
+                                        .font(ForestTheme.Fonts.body)
+                                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                                    Text(earned
+                                         ? String(localized: "Earned! 🎉")
+                                         : String(localized: "Earn \(badge.threshold) stars"))
+                                        .font(ForestTheme.Fonts.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if earned {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(ForestTheme.Colors.leafGreen)
+                                        .font(.title2)
+                                }
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .forestCard(cornerRadius: 20)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+
+                    Text(String(localized: "Play quizzes in any category to earn more stars!"))
+                        .font(ForestTheme.Fonts.caption)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(ForestTheme.Metrics.screenPadding)
+                .adaptiveContentWidth(600)
+            }
+        }
+        .navigationTitle(String(localized: "मेरे इनाम · My Rewards"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
 }
 
 // MARK: - Hub (category grid)
@@ -78,6 +166,27 @@ struct HindiLearningHomeView: View {
                                      titleEnglish: String(localized: "Moral Stories"),
                                      progress: nil) {
                             dependencies.appState.navigationPath.append(.moralStories)
+                        }
+
+                        categoryCard(emoji: "✍️",
+                                     titleHindi: String(localized: "लिखना सीखें"),
+                                     titleEnglish: String(localized: "Letter Tracing"),
+                                     progress: nil) {
+                            dependencies.appState.navigationPath.append(.hindiTracing)
+                        }
+
+                        categoryCard(emoji: "🕐",
+                                     titleHindi: String(localized: "घड़ी का खेल"),
+                                     titleEnglish: String(localized: "Clock Game"),
+                                     progress: Double(LearningProgress.bestScore(for: "clock")) / Double(HindiModuleView.quizRounds)) {
+                            dependencies.appState.navigationPath.append(.clockGame)
+                        }
+
+                        categoryCard(emoji: "🏆",
+                                     titleHindi: String(localized: "मेरे इनाम"),
+                                     titleEnglish: String(localized: "My Rewards"),
+                                     progress: nil) {
+                            dependencies.appState.navigationPath.append(.learningRewards)
                         }
 
                         ForEach(HindiLearningCatalog.modules) { module in

@@ -449,6 +449,16 @@ enum HindiLearningCatalog {
             LearningItem(hindi: "सब धर्म समान हैं", english: "All religions are equal", emoji: "🤝"),
             LearningItem(hindi: "सबका आदर करो", english: "Respect everyone", emoji: "🙏")
         ]),
+        LearningModule(id: "places", emoji: "🕌", titleHindi: "ऐतिहासिक स्थल", titleEnglish: "Historical Places", items: [
+            LearningItem(hindi: "ताजमहल", english: "Taj Mahal · Agra — a white marble wonder of love", emoji: "🕌"),
+            LearningItem(hindi: "लाल किला", english: "Red Fort · Delhi — where the flag flies on Independence Day", emoji: "🏰"),
+            LearningItem(hindi: "कुतुब मीनार", english: "Qutub Minar · Delhi — a very tall ancient tower", emoji: "🗼"),
+            LearningItem(hindi: "इंडिया गेट", english: "India Gate · Delhi — honors our brave soldiers", emoji: "🏛️"),
+            LearningItem(hindi: "हवा महल", english: "Hawa Mahal · Jaipur — the palace of winds", emoji: "🏯"),
+            LearningItem(hindi: "चारमीनार", english: "Charminar · Hyderabad — four beautiful minarets", emoji: "🕌"),
+            LearningItem(hindi: "स्वर्ण मंदिर", english: "Golden Temple · Amritsar — shining gold gurudwara", emoji: "🪯"),
+            LearningItem(hindi: "साँची स्तूप", english: "Sanchi Stupa — a peaceful ancient dome", emoji: "☸️")
+        ]),
         LearningModule(id: "personalities", emoji: "🕊️", titleHindi: "महान व्यक्ति", titleEnglish: "Great Personalities", items: [
             LearningItem(hindi: "महात्मा गांधी", english: "Mahatma Gandhi — Father of the Nation", emoji: "🕊️"),
             LearningItem(hindi: "डॉ. अब्दुल कलाम", english: "A.P.J. Abdul Kalam — Missile Man & President", emoji: "🚀"),

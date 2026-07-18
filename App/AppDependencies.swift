@@ -195,6 +195,9 @@ enum AppRoute: Hashable {
     case multiplicationTables
     case rhymes
     case moralStories
+    case hindiTracing
+    case clockGame
+    case learningRewards
     case settings
 }
 
