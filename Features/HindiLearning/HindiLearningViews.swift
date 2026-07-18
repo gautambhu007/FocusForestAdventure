@@ -18,6 +18,7 @@ enum LearningProgress {
     }
 
     static func recordScore(_ score: Int, for moduleID: String) {
+        DailyStreak.recordActivity()
         if score > bestScore(for: moduleID) {
             UserDefaults.standard.set(score, forKey: "hindi.quizBest.\(moduleID)")
         }
@@ -69,6 +70,15 @@ struct LearningRewardsView: View {
                     Text(String(localized: "\(stars) stars earned!"))
                         .font(ForestTheme.Fonts.title)
                         .foregroundStyle(ForestTheme.Colors.deepGreen)
+
+                    let streak = DailyStreak.current()
+                    Text(streak > 0
+                         ? String(localized: "🔥 \(streak)-day learning streak!")
+                         : String(localized: "Play today to start a streak! 🔥"))
+                        .font(ForestTheme.Fonts.body)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .forestCard(cornerRadius: 16)
 
                     VStack(spacing: 12) {
                         ForEach(LearningProgress.badges, id: \.threshold) { badge in

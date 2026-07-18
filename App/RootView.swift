@@ -37,12 +37,61 @@ struct RootView: View {
             .navigationDestination(for: AppRoute.self) { route in
                 destination(for: route)
             }
+            // Parent-set daily play limit: gentle full-screen rest overlay.
+            // Parent surfaces stay reachable so the limit can be adjusted.
+            .overlay {
+                if isRestTime {
+                    restOverlay
+                }
+            }
         }
         .task {
             // Splash for 1.6s, then the bunny welcome intro.
             try? await Task.sleep(for: .seconds(1.6))
             withAnimation(.smooth(duration: 0.6)) { phase = .intro }
         }
+    }
+
+    /// Limit reached and not inside a parent surface.
+    private var isRestTime: Bool {
+        _ = appState.usageTick   // re-evaluate on every meter tick
+        let limit = appState.settings.dailyLimitMinutes
+        guard limit > 0 else { return false }
+        let inParentArea = appState.navigationPath.contains { route in
+            route == .parentGate || route == .parentDashboard || route == .settings
+        }
+        return !inParentArea && DailyUsage.todayMinutes() >= limit
+    }
+
+    private var restOverlay: some View {
+        ZStack {
+            ForestTheme.Gradients.magic.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Text("😴🐰")
+                    .font(.system(size: 80))
+                    .floating(amplitude: 6, period: 2.4)
+                Text(String(localized: "The forest is sleeping!"))
+                    .font(ForestTheme.Fonts.title)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                Text(String(localized: "Wonderful playing today! Time to rest — Bunny will be here tomorrow. 🌙"))
+                    .font(ForestTheme.Fonts.body)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+
+                Button {
+                    appState.navigationPath.append(.parentGate)
+                } label: {
+                    Text(String(localized: "Parents"))
+                        .font(ForestTheme.Fonts.caption)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                        .padding(.horizontal, 18).padding(.vertical, 10)
+                        .forestCard(cornerRadius: 16)
+                }
+                .buttonStyle(SquishyButtonStyle())
+            }
+        }
+        .transition(.opacity)
     }
 
     @ViewBuilder
@@ -88,6 +137,8 @@ struct RootView: View {
             ClockGameView(dependencies: dependencies)
         case .learningRewards:
             LearningRewardsView(dependencies: dependencies)
+        case .leafCatch:
+            LeafCatchGameView(viewModel: LeafCatchViewModel(dependencies: dependencies))
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

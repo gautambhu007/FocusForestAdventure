@@ -30,9 +30,17 @@ final class ParentDashboardViewModel {
     var rangeDays = 7 {
         didSet { Task { await load() } }
     }
+    /// Parent-controlled daily play limit (minutes, 0 = off).
+    var dailyLimitMinutes: Int = 0 {
+        didSet {
+            dependencies.appState.settings.dailyLimitMinutes = dailyLimitMinutes
+            UserDefaults.standard.set(dailyLimitMinutes, forKey: "settings.dailyLimit")
+        }
+    }
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
+        self.dailyLimitMinutes = UserDefaults.standard.integer(forKey: "settings.dailyLimit")
     }
 
     func load() async {
@@ -117,6 +125,27 @@ struct ParentDashboardView: View {
                                value: "\(viewModel.summary?.totalMissions ?? 0)")
                 LabeledContent(String(localized: "Average attention"),
                                value: "\(viewModel.averageAttention)%")
+                LabeledContent(String(localized: "Learning streak"),
+                               value: String(localized: "🔥 \(DailyStreak.current()) day(s)"))
+            }
+
+            Section {
+                Picker(String(localized: "Daily play limit"), selection: Binding(
+                    get: { viewModel.dailyLimitMinutes },
+                    set: { viewModel.dailyLimitMinutes = $0 }
+                )) {
+                    Text(String(localized: "Off")).tag(0)
+                    Text(String(localized: "15 min")).tag(15)
+                    Text(String(localized: "30 min")).tag(30)
+                    Text(String(localized: "45 min")).tag(45)
+                    Text(String(localized: "60 min")).tag(60)
+                }
+                LabeledContent(String(localized: "Played today"),
+                               value: String(localized: "\(DailyUsage.todayMinutes()) min"))
+            } header: {
+                Text(String(localized: "Screen time"))
+            } footer: {
+                Text(String(localized: "When the limit is reached, the child sees a gentle 'forest is sleeping' screen until tomorrow. You can always change it here."))
             }
 
             Section(String(localized: "This week")) {

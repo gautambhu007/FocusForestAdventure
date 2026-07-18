@@ -29,6 +29,7 @@ deviations, extras delivered beyond the plan, and remaining work.
 | 2.7 Engagement Estimation | ✅ Complete (camera-free by design — interaction signals only) |
 | 2.8 Recommendation Engine | ✅ Complete (consumed end to end) |
 | 2.9 Release Readiness | ⬜ Not started |
+| Phase 3 — Hindi Learning Platform | ✅ Complete (40 categories/games — see below) |
 
 Current architecture includes:
 
@@ -764,13 +765,78 @@ the celebration screen.
   aps-environment entitlement.
 - **Settings hydration at launch** (fixed latent sync bug).
 
-### Remaining work
+### Phase 3 — Hindi Learning Platform ✅ (July 2026)
 
-- **Phase 2.9 — Release readiness**: privacy review, accessibility audit,
-  performance/battery profiling, regression + UI + snapshot test expansion,
-  App Store metadata. Largely human-on-device work.
-- **Real assets**: Lottie animation JSONs (12 files listed in
-  Resources/Animations/README.md) and sound effects/ambience are still
-  placeholders; the app runs fully without them by design.
-- **Test target signing** for running the suite on device.
-- **Gesture mini games** for point/grab/open-palm (engine ready).
+A full preschool learning platform behind the 📖 हिंदी button on Home,
+built on a data-driven engine (`LearningModule`: one reusable bilingual
+lesson + listen-and-select quiz UI; new categories are pure data).
+
+**Language**: Hindi varnamala explorer (51 letters — 13 vowels + 38
+consonants incl. nasals ङ/ञ with in-word TTS overrides and conjuncts),
+48 Twemoji card illustrations (CC-BY, offline, attributed in README) plus
+custom-drawn pomegranate and spinning charkha, interactive Barakhadi chart
+with listen-and-find quiz, English A–Z, and a 12-section handwriting
+workbook: letter outlines extracted from the system font via Core Text
+glyph paths, coverage-based 0–100 scoring (pass ≥ 60), sequential letters,
+section locks/⭐-perfect states, Hindi praise/retry voice lines, undo/
+clear/replay controls, persistent per-letter progress.
+
+**Math**: numbers 1–20 / 21–50 / 51–100 (generated Devanagari numerals +
+correct Hindi names), multiplication tables 2–20 with practice quiz,
+analog clock-reading game.
+
+**World & life**: 30+ data modules — fruits, vegetables, animals, birds,
+insects, water animals, flowers, colors, shapes, body parts, vehicles,
+actions, community helpers, good habits, good manners, safety (incl. 112),
+food, time, seasons, months, days, festivals, national symbols, Indian
+currency, religions (even-handed, child-safe), great personalities,
+historical places.
+
+**Stories & songs**: 5 traditional nursery rhymes with line-highlight
+narration; 4 classic fables (bilingual paged reader, narrated, moral page).
+
+**Rewards & tracking**: star economy across every quiz + traced letter,
+5 badge tiers, Hindi Alphabet Master award, My Rewards screen, printable
+achievement certificate (Teacher mode), per-module scores + weak-topics
+list in the parent dashboard. All offline, dark-mode aware, hi-IN speech
+with missing-voice guidance.
+
+### Pending / Backlog
+
+**Release (Phase 2.9)** — not started; largely human-on-device work:
+- Privacy review, accessibility audit (VoiceOver pass on new screens),
+  performance & battery profiling, regression/UI/snapshot test expansion,
+  App Store metadata & screenshots.
+- Test-target signing so the unit suite runs on device.
+
+**Assets & content**:
+- Lottie animation JSONs (12 files listed in Resources/Animations/README.md)
+  and sound effects/ambience — the app runs fully without them by design.
+- Real illustrations for the weaker emoji approximations (ठठेरा tinsmith,
+  ओखली mortar, सपेरा snake charmer, शलगम turnip, वक stork).
+- More rhymes/stories (current: 5 rhymes, 4 fables); more tracing revision
+  content.
+- Translations: UI uses String(localized:) throughout, but Spanish/Hindi/
+  French string catalogs are not yet populated.
+
+**Hindi platform backlog**:
+- True stroke-order tracing data (font gives outlines only; the replay dot
+  follows contours, not pen order) and direction arrows.
+- Barakhadi full-matrix practice; number-name audio drill for 21–100.
+- Learning progress is UserDefaults-local — not synced via CloudKit like
+  the forest data; decide whether it should be.
+- Avatar customization (prompt item not yet built).
+- ~~Daily streaks~~ ✅ built: any mission/quiz/traced letter counts;
+  shown in My Rewards and the parent dashboard; date logic unit-tested.
+- ~~Screen-time limits~~ ✅ built: parent-set daily limit (PIN-protected
+  dashboard, Off/15/30/45/60 min), foreground usage metering, gentle
+  "forest is sleeping" overlay for the child with a Parents escape hatch.
+
+**Future AI features (explicitly deferred)**: pronunciation evaluation via
+mic, AI storytelling/conversation beyond the offline catalogs, handwriting
+recognition, personalized learning path, multi-language framework
+(Tamil/Telugu/Bengali/…).
+
+**Engines awaiting gameplay**: ~~point/grab/open-palm~~ grab and open-palm
+now drive the Leaf Catch mini-game (fist to catch, palm for a slow-motion
+gust); only POINT still awaits a game.

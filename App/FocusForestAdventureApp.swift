@@ -17,6 +17,7 @@ struct FocusForestAdventureApp: App {
     @State private var dependencies: AppDependencies
 
     @Environment(\.scenePhase) private var scenePhase
+    @State private var usageTask: Task<Void, Never>?
 
     private let modelContainer: ModelContainer
 
@@ -46,6 +47,19 @@ struct FocusForestAdventureApp: App {
                     // spinning up trips a dispatch assertion inside Apple's
                     // speech frameworks (iOS 18). Wait out the churn and skip
                     // entirely if the mic is (or becomes) live.
+                    // Screen-time meter: count foreground time in 30s slices.
+                    usageTask?.cancel()
+                    if phase == .active {
+                        usageTask = Task { @MainActor in
+                            while !Task.isCancelled {
+                                try? await Task.sleep(for: .seconds(30))
+                                guard !Task.isCancelled else { return }
+                                DailyUsage.addSeconds(30)
+                                dependencies.appState.usageTick += 1
+                            }
+                        }
+                    }
+
                     guard phase == .active else { return }
                     Task { @MainActor in
                         try? await Task.sleep(for: .seconds(1.5))

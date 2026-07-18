@@ -115,6 +115,10 @@ enum GlyphOutline {
     }
 
     /// Accuracy 0–100: coverage of the outline + precision of the strokes.
+    /// Calibrated for a 99% completion bar: a careful, COMPLETE trace by a
+    /// child should genuinely reach 99–100, while partial or off-shape
+    /// traces cannot — so the curve is generous near the top but the
+    /// coverage requirement stays strict.
     static func score(drawn: [[CGPoint]], outline: [CGPoint], tolerance: CGFloat) -> Int {
         let drawnPoints = drawn.flatMap { $0 }
         guard !drawnPoints.isEmpty, !outline.isEmpty else { return 0 }
@@ -132,7 +136,10 @@ enum GlyphOutline {
         let precise = drawnPoints.filter { near($0, outline) }.count
         let coverage = Double(covered) / Double(outline.count)
         let precision = Double(precise) / Double(drawnPoints.count)
-        return Int((coverage * 0.7 + precision * 0.3) * 100)
+        let raw = coverage * 0.7 + precision * 0.3
+        // Forgiving top-end curve: raw 0.95 → ~97, raw 0.98 → ~99.
+        let curved = pow(raw, 0.55)
+        return min(100, Int((curved * 100).rounded()))
     }
 }
 
@@ -166,13 +173,20 @@ enum TracingWorkbook {
 }
 
 enum TracingProgress {
-    private static let defaults = UserDefaults.standard
+    /// Completion bar: a letter counts at 88%+ accuracy.
+    /// (Single knob — tuned from 60 → 99 → 88 based on real-child testing.)
+    static let passScore = 88
+
+    // UserDefaults isn't Sendable, so it's accessed inline (never stored
+    // statically) to satisfy Swift 6 strict concurrency.
 
     static func bestScore(_ letter: String) -> Int {
-        defaults.integer(forKey: "trace.best.\(letter)")
+        UserDefaults.standard.integer(forKey: "trace.best.\(letter)")
     }
 
     static func record(_ score: Int, letter: String) {
+        DailyStreak.recordActivity()
+        let defaults = UserDefaults.standard
         defaults.set(defaults.integer(forKey: "trace.attempts.\(letter)") + 1,
                      forKey: "trace.attempts.\(letter)")
         if score > bestScore(letter) {
@@ -180,7 +194,7 @@ enum TracingProgress {
         }
     }
 
-    static func isCompleted(_ letter: String) -> Bool { bestScore(letter) >= 60 }
+    static func isCompleted(_ letter: String) -> Bool { bestScore(letter) >= passScore }
 
     static func completedCount(in section: TracingSection) -> Int {
         section.letters.filter(isCompleted).count
@@ -191,7 +205,8 @@ enum TracingProgress {
     }
 
     static func isSectionPerfect(_ section: TracingSection) -> Bool {
-        section.letters.allSatisfy { bestScore($0) >= 90 }
+        // With a 99% completion bar, "perfect" means flawless 100s.
+        section.letters.allSatisfy { bestScore($0) >= 100 }
     }
 
     /// First not-yet-completed section is the "current" one; later = locked.
@@ -471,6 +486,8 @@ struct TracingSessionView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(ForestTheme.Colors.leafGreen)
                     Text(String(localized: "\(lastScore)% — शाबाश!"))
+                } else if lastScore >= 78 {
+                    Text(String(localized: "\(lastScore)% — so close! Trace every part of the letter!"))
                 } else {
                     Text(String(localized: "\(lastScore)% — try once more!"))
                 }
@@ -556,11 +573,13 @@ struct TracingSessionView: View {
 
     private func evaluate(outline: [CGPoint]) {
         guard !outline.isEmpty, !strokes.isEmpty else { return }
-        let score = GlyphOutline.score(drawn: strokes, outline: outline, tolerance: 30)
+        // Tolerance widened alongside the 99% bar: forgiving of wobble,
+        // strict about completeness.
+        let score = GlyphOutline.score(drawn: strokes, outline: outline, tolerance: 36)
         lastScore = score
         TracingProgress.record(score, letter: letter)
 
-        if score >= 60 {
+        if score >= TracingProgress.passScore {
             passed = true
             sparkle += 1
             dependencies.hapticsService.playSuccess()

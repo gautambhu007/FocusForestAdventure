@@ -75,6 +75,7 @@ final class AppDependencies {
         ) ?? .automatic
         let savedAge = defaults.integer(forKey: "settings.childAge")
         appState.settings.childAge = savedAge == 0 ? 4 : savedAge
+        appState.settings.dailyLimitMinutes = defaults.integer(forKey: "settings.dailyLimit")
 
         // Repositories (SwiftData-backed)
         let childRepo = SwiftDataChildRepository(context: context)
@@ -173,6 +174,8 @@ final class AppState {
     var navigationPath: [AppRoute] = []
     var activeChildID: PersistentIdentifier?
     var settings = AppSettings()
+    /// Bumped by the usage meter so the screen-time gate re-evaluates.
+    var usageTick = 0
 }
 
 /// Type-safe navigation routes for the root NavigationStack.
@@ -198,6 +201,7 @@ enum AppRoute: Hashable {
     case hindiTracing
     case clockGame
     case learningRewards
+    case leafCatch
     case settings
 }
 
@@ -211,6 +215,9 @@ struct AppSettings: Equatable {
     /// Phase 2.7: interaction-based engagement adaptation. OFF by default;
     /// requires explicit parent consent in Settings.
     var isEngagementAdaptationEnabled = false
+    /// Parent-controlled daily play limit in minutes (0 = off). Set from
+    /// the PIN-protected parent dashboard.
+    var dailyLimitMinutes: Int = 0
     var preferredDifficulty: DifficultyPreference = .automatic
     var language: AppLanguage = .system
     /// Age-based content: 4 = letter recognition in ABC, 5 = word reading

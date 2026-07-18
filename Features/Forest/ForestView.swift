@@ -48,6 +48,11 @@ final class ForestViewModel {
         dependencies.appState.navigationPath.append(.starCatch)
     }
 
+    func leafCatchTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.appState.navigationPath.append(.leafCatch)
+    }
+
     var unlocked: [ForestElement] { forest?.unlockedElements ?? [] }
     var nextUnlock: ForestElement? {
         ForestElement.allCases.first { !unlocked.contains($0) }
@@ -95,6 +100,17 @@ struct ForestView: View {
                 viewModel.starCatchTapped()
             } label: {
                 Label(String(localized: "Star Catch"), systemImage: "star.fill")
+                    .font(ForestTheme.Fonts.caption)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .forestCard(cornerRadius: 16)
+            }
+            .buttonStyle(SquishyButtonStyle())
+
+            Button {
+                viewModel.leafCatchTapped()
+            } label: {
+                Label(String(localized: "Leaf Catch"), systemImage: "leaf.fill")
                     .font(ForestTheme.Fonts.caption)
                     .foregroundStyle(ForestTheme.Colors.deepGreen)
                     .padding(.horizontal, 14).padding(.vertical, 10)

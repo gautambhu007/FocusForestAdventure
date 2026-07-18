@@ -49,6 +49,18 @@ enum RhymeCatalog {
             "बाकी जो बचा था काले चोर ले गए",
             "खाके पीके मोटे होके चोर बैठे रेल में",
             "चोरों वाला डिब्बा कटके पहुँचा सीधे जेल में"
+        ]),
+        NurseryRhyme(id: "titli", emoji: "🦋", title: "तितली उड़ी", lines: [
+            "तितली उड़ी, बस में चढ़ी",
+            "सीट न मिली, तो रोने लगी",
+            "ड्राइवर बोला, आजा मेरे पास",
+            "तितली बोली, हट बदमाश"
+        ]),
+        NurseryRhyme(id: "akkad", emoji: "🎲", title: "अक्कड़ बक्कड़", lines: [
+            "अक्कड़ बक्कड़ बम्बे बो",
+            "अस्सी नब्बे पूरे सौ",
+            "सौ में लगा धागा",
+            "चोर निकल के भागा"
         ])
     ]
 }
@@ -135,6 +147,38 @@ enum StoryCatalog {
             ],
             moralHindi: "लालच बुरी बला है।",
             moralEnglish: "Greed never pays."
+        ),
+        MoralStory(
+            id: "grapes", emoji: "🦊",
+            titleHindi: "अंगूर खट्टे हैं", titleEnglish: "The Fox and the Grapes",
+            pages: [
+                .init(hindi: "एक लोमड़ी को ऊँची बेल पर अंगूर दिखे।",
+                      english: "A fox saw grapes hanging on a high vine."),
+                .init(hindi: "उसने ऊँची-ऊँची छलाँगें लगाईं।",
+                      english: "She jumped and jumped as high as she could."),
+                .init(hindi: "अंगूर हाथ नहीं आए। लोमड़ी थक गई।",
+                      english: "She couldn't reach them and grew tired."),
+                .init(hindi: "जाते-जाते बोली, 'हुंह! अंगूर तो खट्टे हैं!'",
+                      english: "Walking away she said, 'Hmph! Those grapes are sour anyway!'")
+            ],
+            moralHindi: "जो चीज़ न मिले, उसे बुरा मत कहो।",
+            moralEnglish: "Don't call something bad just because you can't have it."
+        ),
+        MoralStory(
+            id: "sticks", emoji: "🪵",
+            titleHindi: "एकता में बल", titleEnglish: "The Bundle of Sticks",
+            pages: [
+                .init(hindi: "एक किसान के बेटे हमेशा झगड़ते रहते थे।",
+                      english: "A farmer's sons were always quarreling."),
+                .init(hindi: "किसान ने सबको एक-एक लकड़ी दी। सबने आसानी से तोड़ दी।",
+                      english: "The farmer gave each one a stick. They snapped them easily."),
+                .init(hindi: "फिर उसने लकड़ियों का बंडल दिया। कोई नहीं तोड़ पाया।",
+                      english: "Then he gave them a whole bundle. No one could break it."),
+                .init(hindi: "बेटे समझ गए — मिलकर रहने में ही ताकत है।",
+                      english: "The sons understood — together they were strong.")
+            ],
+            moralHindi: "एकता में ही बल है।",
+            moralEnglish: "Together we are strong."
         )
     ]
 }

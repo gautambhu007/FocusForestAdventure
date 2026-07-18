@@ -108,6 +108,7 @@ struct CompleteMissionUseCase {
             }
         }
 
+        DailyStreak.recordActivity()   // missions count toward the streak too
         try missionRepository.save(record, for: child)
 
         // 2. Compute rewards (effort always counts).
