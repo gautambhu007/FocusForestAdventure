@@ -4,6 +4,15 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Adventure</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera is used only to show your child's forest in augmented reality and for optional gesture mini-games. No photos or videos are ever captured, stored, or shared.</string>
 	<key>NSMicrophoneUsageDescription</key>

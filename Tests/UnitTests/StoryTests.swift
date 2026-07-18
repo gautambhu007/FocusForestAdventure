@@ -219,9 +219,11 @@ final class StoryNarratorTests: XCTestCase {
     private final class SpeechServiceSpy: SpeechServiceProtocol {
         var isEnabled = true
         var hasNaturalVoice = true
+        var hasHindiVoice = true
         var spoken: [String] = []
         var stopCount = 0
         func speak(_ text: String) async { spoken.append(text) }
+        func speak(_ text: String, language: String) async { spoken.append(text) }
         func stop() { stopCount += 1 }
         func refreshVoice() {}
     }

@@ -45,7 +45,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.focusforest.adventure
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # Launch screen comes from AppInfo.plist (UILaunchScreen dict +
+        # LaunchBackground color asset) — no generated white screen.
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         # Phase 2.2 Bunny assistant voice input (on-device only, tap-to-talk).
         # AppInfo.plist is merged into the generated Info.plist and carries the

@@ -96,8 +96,11 @@ enum MissionType: String, Codable, Sendable, CaseIterable {
 /// One interactive question inside a mission.
 struct MissionQuestion: Hashable, Sendable, Identifiable {
     let id: UUID
-    let prompt: String                     // spoken + displayed
+    let prompt: String                     // displayed (and spoken by default)
     let content: QuestionContent
+    /// When display and speech should differ (e.g. show "6 + 2 = ?" but
+    /// say "What is 6 plus 2?"), this is what Bunny says instead.
+    var spokenPrompt: String? = nil
 }
 
 /// Typed payloads for each mini-game renderer.

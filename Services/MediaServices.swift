@@ -133,7 +133,13 @@ protocol SpeechServiceProtocol: AnyObject {
     /// for the user's language. False means iOS will use the compact
     /// (robotic) voice — the UI can then point parents at the voice download.
     var hasNaturalVoice: Bool { get }
+    /// True when a Hindi (hi-IN) voice is installed — without it, Devanagari
+    /// falls to the English voice and comes out as gibberish.
+    var hasHindiVoice: Bool { get }
     func speak(_ text: String) async
+    /// Speak in a specific language (BCP-47 code, e.g. "hi-IN" for the
+    /// Hindi alphabet cards) instead of the default voice.
+    func speak(_ text: String, language: String) async
     func stop()
     /// Re-scan installed voices (call on foreground: the user may have just
     /// downloaded a better voice in Settings — no relaunch required).
@@ -148,9 +154,16 @@ final class SpeechService: SpeechServiceProtocol {
 
     var hasNaturalVoice: Bool { SpeechWorker.hasNaturalVoiceInstalled() }
 
+    var hasHindiVoice: Bool { worker.hindiVoiceAvailable }
+
     func speak(_ text: String) async {
         guard isEnabled else { return }
         worker.enqueue(text)   // returns immediately; synthesis runs off-main
+    }
+
+    func speak(_ text: String, language: String) async {
+        guard isEnabled else { return }
+        worker.enqueue(text, language: language)
     }
 
     func stop() {
@@ -175,6 +188,9 @@ final class SpeechWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.focusforest.speech", qos: .userInitiated)
     private let synthesizer = AVSpeechSynthesizer()
     private var cachedVoice: AVSpeechSynthesisVoice?
+    /// Probed once on the worker queue at init (voice queries can trip iOS 18
+    /// dispatch asserts when called from Swift Concurrency contexts).
+    nonisolated(unsafe) private(set) var hindiVoiceAvailable = false
 
     init() {
         queue.async { [self] in
@@ -183,13 +199,14 @@ final class SpeechWorker: @unchecked Sendable {
             // later app audio (a common "speech stops working" cause).
             synthesizer.usesApplicationAudioSession = true
             cachedVoice = Self.bestVoice()      // resolve once, off-main
+            hindiVoiceAvailable = AVSpeechSynthesisVoice(language: "hi-IN") != nil
             let warmup = AVSpeechUtterance(string: " ")
             warmup.volume = 0
             synthesizer.speak(warmup)
         }
     }
 
-    func enqueue(_ text: String) {
+    func enqueue(_ text: String, language: String? = nil) {
         Self.log.debug("🥕 speech enqueue")
         queue.async { [self] in
             // Must be .immediate: a deferred .word stop fires *later* and clears
@@ -202,7 +219,9 @@ final class SpeechWorker: @unchecked Sendable {
             utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
             utterance.pitchMultiplier = 1.08
             utterance.volume = 0.9
-            utterance.voice = cachedVoice
+            // Language override (e.g. "hi-IN" for Hindi letters); falls back
+            // to the default voice when that language isn't available.
+            utterance.voice = language.flatMap(AVSpeechSynthesisVoice.init(language:)) ?? cachedVoice
             synthesizer.speak(utterance)
         }
     }

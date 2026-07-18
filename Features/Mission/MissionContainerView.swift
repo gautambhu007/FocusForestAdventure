@@ -137,6 +137,7 @@ struct MissionContainerView: View {
                 .fixedSize(horizontal: false, vertical: true)   // wrap, never "F…"
                 .padding(.horizontal)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityLabel(question.spokenPrompt ?? question.prompt)   // VoiceOver says words, not "6 + 2"
 
             switch question.content {
             case .tapCorrect(let options, let correctID):

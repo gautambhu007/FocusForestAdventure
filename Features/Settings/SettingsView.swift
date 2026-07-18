@@ -116,6 +116,7 @@ struct SettingsView: View {
                 Picker(String(localized: "Child's age"), selection: $viewModel.childAge) {
                     Text(String(localized: "4 years")).tag(4)
                     Text(String(localized: "5 years")).tag(5)
+                    Text(String(localized: "6 years")).tag(6)
                 }
                 Picker(String(localized: "Difficulty"), selection: $viewModel.difficulty) {
                     Text(String(localized: "Gentle")).tag(DifficultyPreference.gentle)
@@ -125,7 +126,7 @@ struct SettingsView: View {
             } header: {
                 Text(String(localized: "Learning"))
             } footer: {
-                Text(String(localized: "At 4, the ABC adventure practices letters. At 5, it becomes word reading — short words with four choices, and no word repeats until all 350+ have been seen. Difficulty adjusts gently and never jumps."))
+                Text(String(localized: "At 4, the ABC adventure practices letters. At 5, it becomes word reading — short words with four choices, and no word repeats until all 350+ have been seen. At 6, the Numbers adventure adds four addition sections (Easy to Challenge, sums up to 20). Difficulty adjusts gently and never jumps."))
             }
 
             Section {

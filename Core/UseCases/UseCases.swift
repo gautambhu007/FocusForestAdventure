@@ -23,7 +23,8 @@ struct StartMissionUseCase {
         difficultyEngine: AdaptiveDifficultyEngine,
         preference: DifficultyPreference,
         duration: TimeInterval,
-        age: Int = 4
+        age: Int = 4,
+        additionSection: AdditionSection? = nil
     ) throws -> MissionPlan {
         let history = try missionRepository
             .missions(for: child, since: nil)
@@ -46,7 +47,8 @@ struct StartMissionUseCase {
             difficulty: difficulty,
             duration: duration,
             age: age,
-            usedWords: Set(child.usedWordsRaw)
+            usedWords: Set(child.usedWordsRaw),
+            additionSection: additionSection
         )
     }
 }

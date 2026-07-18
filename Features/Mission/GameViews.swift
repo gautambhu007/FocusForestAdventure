@@ -22,20 +22,62 @@ struct TapCorrectGameView: View {
         [GridItem(.adaptive(minimum: 120), spacing: 16)]
     }
 
+    /// Word-reading questions (3–4 letter options) lay out as a vertical
+    /// list of wide cards so whole words fit big on one line. Letters,
+    /// numbers, emoji, and colors keep the grid.
+    private var isWordLayout: Bool {
+        options.contains { $0.display.count >= 3 && $0.display.allSatisfy(\.isLetter) }
+    }
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 16) {
-            ForEach(options) { option in
-                Button {
-                    Task { await tapped(option) }
-                } label: {
-                    optionLabel(option)
+        if isWordLayout {
+            VStack(spacing: 14) {
+                ForEach(options) { option in
+                    Button {
+                        Task { await tapped(option) }
+                    } label: {
+                        wordCardLabel(option)
+                    }
+                    .buttonStyle(SquishyButtonStyle())
+                    .gentleShake(trigger: shakingID == option.id)
+                    .accessibilityLabel(option.label)
                 }
-                .buttonStyle(SquishyButtonStyle())
-                .gentleShake(trigger: shakingID == option.id)
-                .accessibilityLabel(option.label)
             }
+            .padding(.horizontal, 24)
+        } else {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(options) { option in
+                    Button {
+                        Task { await tapped(option) }
+                    } label: {
+                        optionLabel(option)
+                    }
+                    .buttonStyle(SquishyButtonStyle())
+                    .gentleShake(trigger: shakingID == option.id)
+                    .accessibilityLabel(option.label)
+                }
+            }
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
+    }
+
+    /// Full-width word card: the whole word, big, on a single line.
+    private func wordCardLabel(_ option: QuestionOption) -> some View {
+        Text(option.display)
+            .font(.system(size: 54, weight: .heavy, design: .rounded))
+            .foregroundStyle(ForestTheme.Colors.deepGreen)
+            .kerning(2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 86)
+            .background(ForestTheme.Colors.cloudWhite)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(.black.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
     }
 
     @ViewBuilder

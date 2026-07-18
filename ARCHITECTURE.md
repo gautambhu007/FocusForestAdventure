@@ -135,6 +135,12 @@ are age-independent for now — the switch point is centralized in
 `MissionGeneratorEngine.generateMission(age:usedWords:)` so future ages only
 touch the engine.
 
+At age 6 the Numbers adventure opens a chooser with four graded addition
+sections (`AdditionSection`: Easy 1–9, Medium 5–14, Hard large-addend,
+Challenge mixed — all sums ≤ 20). `AdditionEngine` generates 20 unique
+problems per section, sorted easy→hard (Challenge stays mixed), with four
+answer choices in-app.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).

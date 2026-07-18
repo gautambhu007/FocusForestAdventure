@@ -27,27 +27,40 @@ struct MissionGeneratorEngine: Sendable {
 
     /// Generate a full mission for an adventure at a difficulty (1...5).
     /// `age` switches content style (5+ turns ABC into word reading);
-    /// `usedWords` keeps word targets from ever repeating.
+    /// `usedWords` keeps word targets from ever repeating;
+    /// `additionSection` (age 6 Numbers) picks one of the four graded
+    /// addition sub-sections.
     func generateMission(
         adventure: AdventureKind,
         difficulty: Int,
         duration: TimeInterval = 240,
         age: Int = 4,
-        usedWords: Set<String> = []
+        usedWords: Set<String> = [],
+        additionSection: AdditionSection? = nil
     ) -> MissionPlan {
         let level = difficulty.clamped(to: 1...5)
         let questionCount = Self.questionsPerMission
 
         // Age 5+: the ABC adventure becomes word reading.
-        let type: MissionType = (adventure == .alphabet && age >= 5)
-            ? .findWord
-            : missionType(for: adventure, difficulty: level)
+        // Age 6 Numbers with a chosen section: graded addition practice.
+        let type: MissionType
+        if adventure == .alphabet && age >= 5 {
+            type = .findWord
+        } else if adventure == .numbers, additionSection != nil {
+            type = .simpleAddition
+        } else {
+            type = missionType(for: adventure, difficulty: level)
+        }
 
         var targetWords: [String] = []
         let questions: [MissionQuestion]
         if type == .findWord {
             targetWords = WordBank.drawTargets(count: questionCount, excluding: usedWords)
             questions = targetWords.map { wordQuestion(target: $0) }
+        } else if let section = additionSection, type == .simpleAddition {
+            let engine = AdditionEngine()
+            questions = engine.problems(for: section, count: questionCount)
+                .map { additionChoiceQuestion($0, engine: engine) }
         } else {
             questions = (0..<questionCount).map { _ in
                 makeQuestion(adventure: adventure, type: type, difficulty: level)
@@ -172,6 +185,21 @@ struct MissionGeneratorEngine: Sendable {
 
     private func wordLabel(_ word: String) -> String {
         String(localized: "Word \(word)")
+    }
+
+    /// Age-6 addition: shows "6 + 2 = ?" while Bunny SAYS
+    /// "What is 6 plus 2?" — symbol on screen, words in the ear.
+    func additionChoiceQuestion(_ problem: AdditionProblem, engine: AdditionEngine) -> MissionQuestion {
+        let options = engine.choices(for: problem).map {
+            QuestionOption(display: "\($0)", label: String(localized: "Number \($0)"))
+        }
+        let correctID = options.first(where: { $0.display == "\(problem.sum)" })!.id
+        return MissionQuestion(
+            id: UUID(),
+            prompt: "\(problem.a) + \(problem.b) = ?",
+            content: .tapCorrect(options: options, correctID: correctID),
+            spokenPrompt: String(localized: "What is \(problem.a) plus \(problem.b)?")
+        )
     }
 
     private func traceQuestion(difficulty: Int) -> MissionQuestion {

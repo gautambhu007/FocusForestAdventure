@@ -66,6 +66,8 @@ struct RootView: View {
             ARForestView(dependencies: dependencies)
         case .starCatch:
             StarCatchGameView(viewModel: StarCatchViewModel(dependencies: dependencies))
+        case .hindiAlphabet:
+            HindiAlphabetView(dependencies: dependencies)
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

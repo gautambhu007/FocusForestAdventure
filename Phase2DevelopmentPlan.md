@@ -14,7 +14,21 @@
 
 ## Current Project Status
 
-Analysis has been completed against the currently open Xcode workspace.
+**Updated July 2026 — Phases 2.1 through 2.8 are IMPLEMENTED.**
+See "Implementation Status" at the end of this document for the full record,
+deviations, extras delivered beyond the plan, and remaining work.
+
+| Phase | Status |
+|---|---|
+| 2.1 AI Story Generator | ✅ Complete |
+| 2.2 Bunny AI Assistant | ✅ Complete |
+| 2.3 Parent Dashboard | ✅ Complete |
+| 2.4 Teacher Mode | ✅ Complete |
+| 2.5 AR Forest | ✅ Complete |
+| 2.6 Hand Tracking | ✅ Complete (pinch + wave in gameplay; point/grab/palm classified, tested, awaiting more mini games) |
+| 2.7 Engagement Estimation | ✅ Complete (camera-free by design — interaction signals only) |
+| 2.8 Recommendation Engine | ✅ Complete (consumed end to end) |
+| 2.9 Release Readiness | ⬜ Not started |
 
 Current architecture includes:
 
@@ -27,12 +41,8 @@ Current architecture includes:
 - Reusable design system with forest theme tokens, reusable buttons, cards, progress, particles, animations, and accessibility-aware UI.
 - Unit tests discovered in the active test plan.
 
-Important current finding:
-
-- Phase 2.1 AI Story Generator is not currently present in the inspected codebase.
-- No current implementation was found for `StoryEngine`, `StoryRepository`, `StoryService`, `StoryView`, `StoryReader`, `StoryHistory`, `StoryCache`, or `StoryNarrator`.
-- Current mission completion flow is `Mission -> RewardCelebration -> MovementBreak`.
-- Phase 2.1 should change the flow to include story generation and story reading after completed missions.
+Mission completion flow (Phase 2.1 integrated):
+`Mission -> RewardCelebration -> StoryReader -> MovementBreak`.
 
 ## Step 1 - Existing Project Analysis
 
@@ -664,3 +674,103 @@ For every implemented feature, document:
 - New files.
 - Architecture notes or diagrams when appropriate.
 - README updates when necessary.
+
+---
+
+## Implementation Status (July 2026)
+
+### Phase 2.1 — AI Story Generator ✅
+
+All eight components exist (`StoryEngine`, `StoryRepository`, `StoryService`,
+`StoryView`, `StoryReader`, `StoryHistory`, `StoryCache`, `StoryNarrator`).
+Stories are deterministic, offline, persisted via `StoryRecord`, narrated
+through the shared speech service, and generated after every completed
+mission. Flow: `Mission -> Reward -> StoryReader -> MovementBreak`.
+Unit tests cover generation, fallback, persistence ordering, and narration.
+
+### Phase 2.2 — Bunny AI Assistant ✅
+
+`IntentDetector` (keyword, offline, distress-first priority) +
+`ConversationEngine` (curated catalogs only — no open-ended generation) +
+`VoiceManager` (tap-to-talk, ON-DEVICE-ONLY recognition, silence auto-stop) +
+session-only in-memory `ConversationHistory` + chat UI with tap-to-ask chips.
+Hard-won lesson now encoded in ARCHITECTURE.md: on iOS 18, ALL
+SFSpeech/AVFoundation work must run on plain GCD queues — driving it from
+Swift Concurrency contexts aborts with `_dispatch_assert_queue_fail`.
+
+### Phase 2.3 — Parent Dashboard ✅
+
+Charts, daily focus, subject strengths, achievements, plus `DashboardInsights`
+(week-over-week trend, play streak) and a "What adapts next" section fed by
+Phase 2.8 with plain-language explanations.
+
+### Phase 2.4 — Teacher Mode ✅
+
+`ReportBuilder` -> `ProgressReport`, `ReportCSVEncoder` (stable column
+contract), `ReportExporter` (A4 PDF). Shared via ShareLink (covers AirDrop,
+Mail, print, Files). Data minimization: first name + aggregates only.
+
+### Phase 2.5 — AR Forest ✅
+
+RealityKit scene: tap-to-plant procedural trees/flowers/animal friends (fox),
+watering growth stages, collectible stars, `ARWorldMap` + JSON sidecar
+save/load, device-support gate with non-AR fallback, camera usage description.
+No bundled 3D assets — entities are procedural.
+
+### Phase 2.6 — Hand Tracking ✅
+
+Pure `GestureEngine` (pinch / point / grab / open palm) + `WaveDetector`,
+all unit-tested with synthetic landmarks. `HandTrackingService` runs Vision
+hand pose on a plain GCD queue at ~12 fps; frames are processed in memory and
+discarded. Star Catch mini-game: pinch to collect, wave for a Bunny wave-back
+and bonus stars; every interaction has a touch fallback. Point/grab/palm are
+classified and tested but not yet used by a game.
+
+### Phase 2.7 — Engagement Estimation ✅ (deviation, deliberate)
+
+Implemented CAMERA-FREE: `EngagementEngine` scores engagement from
+interaction signals only (answer speed, slowing trend, consecutive misses,
+idle time). Identical benefit (pacing, encouragement, graceful wind-down)
+with a categorically stronger privacy story — no image pipeline exists at
+all. Consent toggle in Settings, off by default. All original acceptance
+criteria met or exceeded.
+
+### Phase 2.8 — Recommendation Engine ✅
+
+`makeDailyRecommendations`: mission, difficulty, story theme, reward
+emphasis, movement break, favorite activity, learning schedule — with parent
+explanations and cold-start degradation. Consumed end to end: story theme
+flows into `StoryEngine` (persisted on `StoryRecord`), the recommended
+movement break replaces the random one, reward emphasis is spotlighted on
+the celebration screen.
+
+### Delivered beyond the plan
+
+- **Age-based content**: Settings age picker (4/5/6). Age 5 turns ABC into
+  word reading — 4 options per question, 356-word curated `WordBank`,
+  non-repeating targets tracked per child, picture (emoji) + spoken reveal
+  on success. Age 6 adds four graded addition sections to Numbers
+  (Easy/Medium/Hard/Challenge, 20 unique questions, sums ≤ 20, symbol
+  display "6 + 2 = ?" with spoken "What is 6 plus 2?").
+- **Night mode**: full adaptive palette (day pastels -> dusk forest);
+  game color swatches deliberately fixed so color-learning stays truthful.
+- **2-minute exercise movement break**: 8 shuffled kid exercises with
+  emoji flip-book animation, per-exercise narration, progress leaves,
+  early-exit button, and procedurally synthesized background music
+  (`BreakMusicEngine` — no audio assets required).
+- **App identity**: bunny forest app icon, display name "Adventure",
+  sky-colored launch screen (light/dark) replacing the white flash.
+- **CloudKit sync hygiene**: remote-notification background mode +
+  aps-environment entitlement.
+- **Settings hydration at launch** (fixed latent sync bug).
+
+### Remaining work
+
+- **Phase 2.9 — Release readiness**: privacy review, accessibility audit,
+  performance/battery profiling, regression + UI + snapshot test expansion,
+  App Store metadata. Largely human-on-device work.
+- **Real assets**: Lottie animation JSONs (12 files listed in
+  Resources/Animations/README.md) and sound effects/ambience are still
+  placeholders; the app runs fully without them by design.
+- **Test target signing** for running the suite on device.
+- **Gesture mini games** for point/grab/open-palm (engine ready).

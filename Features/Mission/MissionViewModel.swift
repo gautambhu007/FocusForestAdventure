@@ -82,7 +82,7 @@ final class MissionViewModel {
         questionShownAt = .now
         startFrustrationGuardTimer()
         if let question = currentQuestion {
-            await dependencies.speechService.speak(question.prompt)
+            await dependencies.speechService.speak(question.spokenPrompt ?? question.prompt)
         }
     }
 
@@ -204,7 +204,7 @@ final class MissionViewModel {
         } else {
             questionShownAt = .now
             if let question = currentQuestion {
-                await dependencies.speechService.speak(question.prompt)
+                await dependencies.speechService.speak(question.spokenPrompt ?? question.prompt)
             }
         }
     }

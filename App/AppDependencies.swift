@@ -49,6 +49,7 @@ final class AppDependencies {
     let conversationHistory: ConversationHistory
     let voiceManager: any VoiceManagerProtocol
     let handTrackingService: any HandTrackingServiceProtocol
+    let breakMusicEngine: BreakMusicEngine
     let premiumStore: PremiumStore
 
     // MARK: Use Cases
@@ -139,6 +140,7 @@ final class AppDependencies {
         self.conversationHistory = ConversationHistory()
         self.voiceManager = VoiceManager()
         self.handTrackingService = HandTrackingService()
+        self.breakMusicEngine = BreakMusicEngine()
 
         self.premiumStore = PremiumStore()
 
@@ -186,6 +188,7 @@ enum AppRoute: Hashable {
     case bunnyAssistant
     case arForest
     case starCatch
+    case hindiAlphabet
     case settings
 }
 

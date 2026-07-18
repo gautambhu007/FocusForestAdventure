@@ -133,13 +133,101 @@ struct ForestView: View {
     private var forestElements: some View {
         GeometryReader { proxy in
             ForEach(Array(viewModel.unlocked.enumerated()), id: \.element) { index, element in
-                Text(element.emoji)
-                    .font(.system(size: elementSize(element)))
-                    .position(position(for: index, element: element, in: proxy.size))
-                    .floating(amplitude: element == .butterflies ? 12 : 4,
-                              period: 2 + Double(index % 3))
-                    .accessibilityLabel(element.localizedName)
+                if element == .dragon {
+                    // The magic forest's crown jewel actually FLIES.
+                    FlyingDragonView(size: proxy.size)
+                } else {
+                    Text(element.emoji)
+                        .font(.system(size: elementSize(element)))
+                        .position(position(for: index, element: element, in: proxy.size))
+                        .floating(amplitude: element == .butterflies ? 12 : 4,
+                                  period: 2 + Double(index % 3))
+                        .accessibilityLabel(element.localizedName)
+                }
             }
+        }
+    }
+
+    // MARK: Flying dragon
+
+    /// A living dragon for the magic forest: soars back and forth across the
+    /// sky on a smooth curved path, flips to face its flight direction, banks
+    /// into turns, "beats its wings" with a scale pulse, leaves a sparkle
+    /// trail, and puffs a little fire every few seconds. Pure SwiftUI —
+    /// no animation assets. Respects Reduce Motion (calm float instead).
+    private struct FlyingDragonView: View {
+        let size: CGSize
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            if reduceMotion {
+                Text("🐉")
+                    .font(.system(size: 64))
+                    .position(x: size.width * 0.7, y: size.height * 0.3)
+                    .floating(amplitude: 4, period: 3)
+                    .accessibilityLabel(String(localized: "Friendly Dragon"))
+            } else {
+                TimelineView(.animation) { timeline in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    let position = flightPosition(at: t)
+                    let velocity = flightVelocity(at: t)
+                    let facingRight = velocity.dx >= 0
+                    // Nose follows the path like a snake's head: pitch up and
+                    // down along the weave, clamped so it never looks wild.
+                    let pitch = (atan2(velocity.dy, abs(velocity.dx)) * 180 / .pi)
+                        .clamped(to: -32...32)
+                    let wingBeat = 1 + 0.05 * sin(2 * .pi * t / 0.6)
+                    let firePhase = t.truncatingRemainder(dividingBy: 7)
+
+                    ZStack {
+                        // Sparkle body: six close echoes trace the serpentine
+                        // path behind the head — reads as a snaking tail.
+                        ForEach(0..<6, id: \.self) { echo in
+                            let lag = Double(echo + 1) * 0.22
+                            Text("✨")
+                                .font(.system(size: 24 - CGFloat(echo) * 3))
+                                .opacity(0.60 - Double(echo) * 0.09)
+                                .position(flightPosition(at: t - lag))
+                        }
+
+                        // Fire puff: a brief breath every ~7 seconds.
+                        if firePhase < 0.9 {
+                            Text("🔥")
+                                .font(.system(size: 28))
+                                .opacity(1.0 - firePhase / 0.9)
+                                .scaleEffect(0.7 + firePhase)
+                                .position(x: position.x + (facingRight ? 52 : -52),
+                                          y: position.y + 6)
+                        }
+
+                        // The dragon itself (emoji faces left; flip to fly right).
+                        Text("🐉")
+                            .font(.system(size: 64))
+                            .scaleEffect(x: facingRight ? -wingBeat : wingBeat, y: wingBeat)
+                            .rotationEffect(.degrees(facingRight ? pitch : -pitch))
+                            .position(position)
+                    }
+                }
+                .accessibilityElement()
+                .accessibilityLabel(String(localized: "Friendly Dragon flying around your forest"))
+            }
+        }
+
+        /// Serpentine path confined to the CENTRAL 80% of the page:
+        /// x sweeps 10%…90% of the width (14s per crossing) while y weaves
+        /// through 18%…82% of the height with ~3 S-curves per crossing —
+        /// the classic snake slither, drawn large across the middle.
+        private func flightPosition(at t: TimeInterval) -> CGPoint {
+            let x = (0.5 + 0.40 * sin(2 * .pi * t / 14)) * size.width
+            let y = (0.5 + 0.32 * sin(2 * .pi * t / 5.0)) * size.height
+            return CGPoint(x: x, y: y)
+        }
+
+        /// Analytic derivative of the path — drives head orientation.
+        private func flightVelocity(at t: TimeInterval) -> CGVector {
+            let dx = 0.40 * size.width * (2 * .pi / 14) * cos(2 * .pi * t / 14)
+            let dy = 0.32 * size.height * (2 * .pi / 5.0) * cos(2 * .pi * t / 5.0)
+            return CGVector(dx: dx, dy: dy)
         }
     }
 
