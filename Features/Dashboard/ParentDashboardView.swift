@@ -184,6 +184,29 @@ struct ParentDashboardView: View {
             }
 
             Section {
+                let played = HindiLearningCatalog.modules
+                    .map { ($0, LearningProgress.bestScore(for: $0.id)) }
+                    .filter { $0.1 > 0 }
+                if played.isEmpty {
+                    Text(String(localized: "No Hindi quizzes played yet — find them under हिंदी on the home screen."))
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(played, id: \.0.id) { module, best in
+                    LabeledContent("\(module.emoji) \(module.titleEnglish)",
+                                   value: "\(best)/\(HindiModuleView.quizRounds) ⭐")
+                }
+            } header: {
+                Text(String(localized: "Hindi learning"))
+            } footer: {
+                let weak = HindiLearningCatalog.modules
+                    .filter { (1..<3).contains(LearningProgress.bestScore(for: $0.id)) }
+                    .map(\.titleEnglish)
+                if !weak.isEmpty {
+                    Text(String(localized: "Could use more practice: \(weak.joined(separator: ", "))."))
+                }
+            }
+
+            Section {
                 if let pdf = viewModel.pdfReportURL {
                     ShareLink(item: pdf) {
                         Label(String(localized: "Share PDF report"), systemImage: "doc.richtext")

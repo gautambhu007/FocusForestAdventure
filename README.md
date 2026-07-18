@@ -168,3 +168,10 @@ Then in Signing & Capabilities:
   seasonal forest events (snow, fireflies)
 - v2.0 — Apple Watch movement-break companion, shared family forest via
   CloudKit shared database, teacher/classroom mode
+
+## Artwork credits
+
+Hindi alphabet card illustrations are from [Twemoji](https://github.com/jdecked/twemoji)
+(Copyright 2020 Twitter, Inc and other contributors), used under
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/). Rendered at 512px
+and bundled offline in Resources/Assets.xcassets as hindi_*.imageset.

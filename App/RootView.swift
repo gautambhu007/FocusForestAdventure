@@ -68,6 +68,20 @@ struct RootView: View {
             StarCatchGameView(viewModel: StarCatchViewModel(dependencies: dependencies))
         case .hindiAlphabet:
             HindiAlphabetView(dependencies: dependencies)
+        case .hindiLearning:
+            HindiLearningHomeView(dependencies: dependencies)
+        case .hindiModule(let moduleID):
+            if let module = HindiLearningCatalog.module(id: moduleID) {
+                HindiModuleView(module: module, dependencies: dependencies)
+            }
+        case .barakhadi:
+            BarakhadiView(dependencies: dependencies)
+        case .multiplicationTables:
+            TablesView(dependencies: dependencies)
+        case .rhymes:
+            RhymesView(dependencies: dependencies)
+        case .moralStories:
+            MoralStoriesView(dependencies: dependencies)
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

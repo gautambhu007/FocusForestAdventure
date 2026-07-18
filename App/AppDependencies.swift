@@ -189,6 +189,12 @@ enum AppRoute: Hashable {
     case arForest
     case starCatch
     case hindiAlphabet
+    case hindiLearning
+    case hindiModule(String)
+    case barakhadi
+    case multiplicationTables
+    case rhymes
+    case moralStories
     case settings
 }
 

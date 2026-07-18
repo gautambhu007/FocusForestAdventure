@@ -85,17 +85,36 @@ struct HomeView: View {
                 .padding(.horizontal, 16).padding(.vertical, 6)
                 .forestCard(cornerRadius: 16)
 
-            // Phase 2.2: open the Bunny assistant chat.
-            Button {
-                viewModel.talkToBunnyTapped()
-            } label: {
-                Label(String(localized: "Talk to Bunny"), systemImage: "bubble.left.fill")
-                    .font(ForestTheme.Fonts.caption)
+            HStack(spacing: 10) {
+                // Phase 2.2: open the Bunny assistant chat.
+                Button {
+                    viewModel.talkToBunnyTapped()
+                } label: {
+                    Label(String(localized: "Talk to Bunny"), systemImage: "bubble.left.fill")
+                        .font(ForestTheme.Fonts.caption)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .forestCard(cornerRadius: 18)
+                }
+                .buttonStyle(SquishyButtonStyle())
+
+                // Hindi Learning hub.
+                Button {
+                    viewModel.hindiLearningTapped()
+                } label: {
+                    Label {
+                        Text(String(localized: "हिंदी"))
+                            .font(ForestTheme.Fonts.caption)
+                    } icon: {
+                        Text("📖")
+                    }
                     .foregroundStyle(ForestTheme.Colors.deepGreen)
                     .padding(.horizontal, 16).padding(.vertical, 8)
                     .forestCard(cornerRadius: 18)
+                }
+                .buttonStyle(SquishyButtonStyle())
+                .accessibilityLabel(String(localized: "Learn Hindi"))
             }
-            .buttonStyle(SquishyButtonStyle())
         }
     }
 
