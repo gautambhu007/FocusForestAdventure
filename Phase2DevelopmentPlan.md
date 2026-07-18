@@ -811,7 +811,11 @@ with missing-voice guidance.
 
 **Assets & content**:
 - Lottie animation JSONs (12 files listed in Resources/Animations/README.md)
-  and sound effects/ambience — the app runs fully without them by design.
+  — the SF-symbol fallback still stands in for Bunny.
+- ~~Sound effects/ambience~~ ✅ built: all 7 UI effects + a 30s piano-style
+  ambience loop are procedurally synthesized (sine/noise synthesis → AAC)
+  and bundled in Resources/Sounds. Animal sounds still use the spoken
+  fallback by design.
 - Real illustrations for the weaker emoji approximations (ठठेरा tinsmith,
   ओखली mortar, सपेरा snake charmer, शलगम turnip, वक stork).
 - More rhymes/stories (current: 5 rhymes, 4 fables); more tracing revision
@@ -823,9 +827,11 @@ with missing-voice guidance.
 - True stroke-order tracing data (font gives outlines only; the replay dot
   follows contours, not pen order) and direction arrows.
 - Barakhadi full-matrix practice; number-name audio drill for 21–100.
-- Learning progress is UserDefaults-local — not synced via CloudKit like
-  the forest data; decide whether it should be.
-- Avatar customization (prompt item not yet built).
+- ~~Learning progress sync~~ ✅ built: quiz + tracing best scores mirror to
+  iCloud key-value store with a conflict-free max-wins merge; streaks and
+  usage stay device-local by design.
+- ~~Avatar customization~~ ✅ built: child name + avatar picker in Settings
+  (flows into greetings, stories, assistant, certificates).
 - ~~Daily streaks~~ ✅ built: any mission/quiz/traced letter counts;
   shown in My Rewards and the parent dashboard; date logic unit-tested.
 - ~~Screen-time limits~~ ✅ built: parent-set daily limit (PIN-protected
@@ -837,6 +843,6 @@ mic, AI storytelling/conversation beyond the offline catalogs, handwriting
 recognition, personalized learning path, multi-language framework
 (Tamil/Telugu/Bengali/…).
 
-**Engines awaiting gameplay**: ~~point/grab/open-palm~~ grab and open-palm
-now drive the Leaf Catch mini-game (fist to catch, palm for a slow-motion
-gust); only POINT still awaits a game.
+**Engines awaiting gameplay**: ✅ all five gestures now have gameplay —
+pinch + wave (Star Catch), grab + open palm (Leaf Catch), point
+(Bubble Pop, dwell-to-pop).

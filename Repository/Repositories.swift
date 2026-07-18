@@ -16,6 +16,8 @@ import SwiftData
 protocol ChildRepository {
     func activeChild() throws -> ChildProfile
     func createChild(name: String, avatarEmoji: String) throws -> ChildProfile
+    /// Persist in-place edits to the active child (name, avatar).
+    func saveChanges() throws
 }
 
 @MainActor
@@ -93,6 +95,10 @@ final class SwiftDataChildRepository: ChildRepository {
         context.insert(child)
         try context.save()
         return child
+    }
+
+    func saveChanges() throws {
+        try context.save()
     }
 }
 

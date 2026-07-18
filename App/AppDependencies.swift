@@ -62,6 +62,9 @@ final class AppDependencies {
         let context = modelContainer.mainContext
         self.appState = AppState()
 
+        // Pull cross-device learning scores from iCloud key-value store.
+        SyncedScoreStore.synchronize()
+
         // Hydrate persisted settings at launch (previously they only synced
         // when the Settings screen was opened — a latent inconsistency).
         let defaults = UserDefaults.standard
@@ -202,6 +205,7 @@ enum AppRoute: Hashable {
     case clockGame
     case learningRewards
     case leafCatch
+    case bubblePop
     case settings
 }
 

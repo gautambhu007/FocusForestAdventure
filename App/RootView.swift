@@ -139,6 +139,8 @@ struct RootView: View {
             LearningRewardsView(dependencies: dependencies)
         case .leafCatch:
             LeafCatchGameView(viewModel: LeafCatchViewModel(dependencies: dependencies))
+        case .bubblePop:
+            BubblePopGameView(viewModel: BubblePopViewModel(dependencies: dependencies))
         case .settings:
             SettingsView(viewModel: SettingsViewModel(dependencies: dependencies))
         }

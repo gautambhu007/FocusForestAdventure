@@ -181,7 +181,7 @@ enum TracingProgress {
     // statically) to satisfy Swift 6 strict concurrency.
 
     static func bestScore(_ letter: String) -> Int {
-        UserDefaults.standard.integer(forKey: "trace.best.\(letter)")
+        SyncedScoreStore.int(forKey: "trace.best.\(letter)")
     }
 
     static func record(_ score: Int, letter: String) {
@@ -189,9 +189,7 @@ enum TracingProgress {
         let defaults = UserDefaults.standard
         defaults.set(defaults.integer(forKey: "trace.attempts.\(letter)") + 1,
                      forKey: "trace.attempts.\(letter)")
-        if score > bestScore(letter) {
-            defaults.set(score, forKey: "trace.best.\(letter)")
-        }
+        SyncedScoreStore.set(score, forKey: "trace.best.\(letter)")
     }
 
     static func isCompleted(_ letter: String) -> Bool { bestScore(letter) >= passScore }

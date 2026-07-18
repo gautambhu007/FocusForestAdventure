@@ -14,14 +14,12 @@ import SwiftUI
 
 enum LearningProgress {
     static func bestScore(for moduleID: String) -> Int {
-        UserDefaults.standard.integer(forKey: "hindi.quizBest.\(moduleID)")
+        SyncedScoreStore.int(forKey: "hindi.quizBest.\(moduleID)")
     }
 
     static func recordScore(_ score: Int, for moduleID: String) {
         DailyStreak.recordActivity()
-        if score > bestScore(for: moduleID) {
-            UserDefaults.standard.set(score, forKey: "hindi.quizBest.\(moduleID)")
-        }
+        SyncedScoreStore.set(score, forKey: "hindi.quizBest.\(moduleID)")
     }
 
     /// Every quiz surface that can earn stars.

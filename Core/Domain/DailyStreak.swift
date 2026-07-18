@@ -9,6 +9,35 @@
 
 import Foundation
 
+// MARK: - Cross-device score sync (iCloud key-value store)
+
+/// Best-score storage that mirrors to iCloud's key-value store so quiz and
+/// tracing progress follows the child across devices. Merge rule is
+/// max-wins (scores only ever improve), which is conflict-free by
+/// construction. Streaks and usage stay device-local on purpose.
+enum SyncedScoreStore {
+
+    static func int(forKey key: String) -> Int {
+        let local = UserDefaults.standard.integer(forKey: key)
+        let cloud = Int(NSUbiquitousKeyValueStore.default.longLong(forKey: key))
+        return max(local, cloud)
+    }
+
+    static func set(_ value: Int, forKey key: String) {
+        if value > UserDefaults.standard.integer(forKey: key) {
+            UserDefaults.standard.set(value, forKey: key)
+        }
+        if value > Int(NSUbiquitousKeyValueStore.default.longLong(forKey: key)) {
+            NSUbiquitousKeyValueStore.default.set(Int64(value), forKey: key)
+        }
+    }
+
+    /// Pull the latest cloud values (call once at launch).
+    static func synchronize() {
+        NSUbiquitousKeyValueStore.default.synchronize()
+    }
+}
+
 enum DailyStreak {
 
     static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {

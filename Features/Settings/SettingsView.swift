@@ -71,8 +71,30 @@ final class SettingsViewModel {
         dependencies.speechService.hasNaturalVoice
     }
 
+    /// Child profile edits (name + avatar) — personalize greetings,
+    /// stories, the assistant, and certificates.
+    var childName: String = "" {
+        didSet { saveChildProfile() }
+    }
+    var childAvatar: String = "🐰" {
+        didSet { saveChildProfile() }
+    }
+    static let avatarChoices = ["🐰", "🦊", "🐻", "🦁", "🐯", "🐸", "🦄", "🐼"]
+
+    private func saveChildProfile() {
+        guard let child = try? dependencies.childRepository.activeChild() else { return }
+        let trimmed = childName.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { child.name = trimmed }
+        child.avatarEmoji = childAvatar
+        try? dependencies.childRepository.saveChanges()
+    }
+
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
+        if let child = try? dependencies.childRepository.activeChild() {
+            self.childName = child.name
+            self.childAvatar = child.avatarEmoji
+        }
         let defaults = UserDefaults.standard
         self.isSpeechEnabled = defaults.object(forKey: "settings.speech") as? Bool ?? true
         self.isMusicEnabled = defaults.object(forKey: "settings.music") as? Bool ?? true
@@ -98,6 +120,33 @@ struct SettingsView: View {
         @Bindable var viewModel = viewModel
 
         Form {
+            Section {
+                TextField(String(localized: "Child's name"), text: $viewModel.childName)
+                HStack(spacing: 10) {
+                    ForEach(SettingsViewModel.avatarChoices, id: \.self) { avatar in
+                        Button {
+                            viewModel.childAvatar = avatar
+                        } label: {
+                            Text(avatar)
+                                .font(.system(size: 30))
+                                .padding(6)
+                                .background(
+                                    Circle().fill(viewModel.childAvatar == avatar
+                                                  ? ForestTheme.Colors.mint
+                                                  : .clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(avatar)
+                        .accessibilityAddTraits(viewModel.childAvatar == avatar ? .isSelected : [])
+                    }
+                }
+            } header: {
+                Text(String(localized: "Child"))
+            } footer: {
+                Text(String(localized: "The name appears in greetings, stories, and certificates."))
+            }
+
             Section {
                 Toggle(String(localized: "Bunny speaks"), isOn: $viewModel.isSpeechEnabled)
                 Toggle(String(localized: "Music"), isOn: $viewModel.isMusicEnabled)

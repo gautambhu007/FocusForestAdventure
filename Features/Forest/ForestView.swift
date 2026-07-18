@@ -53,6 +53,11 @@ final class ForestViewModel {
         dependencies.appState.navigationPath.append(.leafCatch)
     }
 
+    func bubblePopTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.appState.navigationPath.append(.bubblePop)
+    }
+
     var unlocked: [ForestElement] { forest?.unlockedElements ?? [] }
     var nextUnlock: ForestElement? {
         ForestElement.allCases.first { !unlocked.contains($0) }
@@ -82,43 +87,36 @@ struct ForestView: View {
         .task { await viewModel.onAppear() }
     }
 
-    /// Phase 2.5/2.6 entry points.
+    /// Forest games & AR entry points (2×2 grid so all four fit).
     private var magicButtons: some View {
-        HStack(spacing: 10) {
-            Button {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            magicButton(String(localized: "See in AR"), symbol: "arkit") {
                 viewModel.arForestTapped()
-            } label: {
-                Label(String(localized: "See in AR"), systemImage: "arkit")
-                    .font(ForestTheme.Fonts.caption)
-                    .foregroundStyle(ForestTheme.Colors.deepGreen)
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .forestCard(cornerRadius: 16)
             }
-            .buttonStyle(SquishyButtonStyle())
-
-            Button {
+            magicButton(String(localized: "Star Catch"), symbol: "star.fill") {
                 viewModel.starCatchTapped()
-            } label: {
-                Label(String(localized: "Star Catch"), systemImage: "star.fill")
-                    .font(ForestTheme.Fonts.caption)
-                    .foregroundStyle(ForestTheme.Colors.deepGreen)
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .forestCard(cornerRadius: 16)
             }
-            .buttonStyle(SquishyButtonStyle())
-
-            Button {
+            magicButton(String(localized: "Leaf Catch"), symbol: "leaf.fill") {
                 viewModel.leafCatchTapped()
-            } label: {
-                Label(String(localized: "Leaf Catch"), systemImage: "leaf.fill")
-                    .font(ForestTheme.Fonts.caption)
-                    .foregroundStyle(ForestTheme.Colors.deepGreen)
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .forestCard(cornerRadius: 16)
             }
-            .buttonStyle(SquishyButtonStyle())
+            magicButton(String(localized: "Bubble Pop"), symbol: "circle.dotted") {
+                viewModel.bubblePopTapped()
+            }
         }
+        .padding(.horizontal, 12)
         .padding(.bottom, 6)
+    }
+
+    private func magicButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(ForestTheme.Fonts.caption)
+                .foregroundStyle(ForestTheme.Colors.deepGreen)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .forestCard(cornerRadius: 16)
+        }
+        .buttonStyle(SquishyButtonStyle())
     }
 
     private var densityForLevel: AnimatedForestBackground.Density {
