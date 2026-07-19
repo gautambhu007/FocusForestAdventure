@@ -18,8 +18,11 @@ matching `ForestAnimation` in `DesignSystem/LottieView.swift`:
 | chest_open.json | Magic chest |
 | confetti_big.json | Mission complete |
 
-Until the JSON files are added, `LottieView` renders a friendly SF Symbol
-placeholder, so the app runs end-to-end without assets.
+Status: 9 of 12 are BUNDLED — programmatically authored flat-style
+animations (python-lottie): bunny_wave, bunny_cheer, bunny_dance,
+bunny_thinking, tree_grow, butterfly, confetti_big, bird_fly, rainbow.
+Still placeholders (SF-symbol fallback): river_flow, castle_sparkle,
+chest_open. Replace any file with same-named artwork to upgrade it.
 
 Sound assets (`Resources/Assets`): forest_piano_ambience.m4a plus the short
 effects listed in `SoundEffect` (tap_pop, correct_chime, gentle_try_again,

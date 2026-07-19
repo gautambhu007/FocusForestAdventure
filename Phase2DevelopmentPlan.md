@@ -810,8 +810,11 @@ with missing-voice guidance.
 - Test-target signing so the unit suite runs on device.
 
 **Assets & content**:
-- Lottie animation JSONs (12 files listed in Resources/Animations/README.md)
-  — the SF-symbol fallback still stands in for Bunny.
+- ~~Lottie animation JSONs~~ ✅ 9 of 12 built: programmatically authored
+  flat-style animations (python-lottie) — all four Bunny animations
+  (wave/cheer/dance/thinking with paw wave, bounce, sway, blink), tree
+  growth, butterfly, confetti, bird, rainbow. Remaining placeholders:
+  river_flow, castle_sparkle, chest_open (SF-symbol fallback).
 - ~~Sound effects/ambience~~ ✅ built: all 7 UI effects + a 30s piano-style
   ambience loop are procedurally synthesized (sine/noise synthesis → AAC)
   and bundled in Resources/Sounds. Animal sounds still use the spoken
