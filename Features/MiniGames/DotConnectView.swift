@@ -283,6 +283,14 @@ final class DotConnectViewModel {
         SyncedScoreStore.int(forKey: "dots.\(key)")
     }
 
+    /// Ring boards (all dots ~0.40 from center) get chords bowed inward.
+    var isRingBoard: Bool {
+        guard let puzzle else { return false }
+        return puzzle.dots.allSatisfy { dot in
+            abs(DotConnectEngine.distance(dot.point, CGPoint(x: 0.5, y: 0.5)) - 0.40) < 0.02
+        }
+    }
+
     // MARK: Cosmetics
 
     /// Total stars across all difficulties + daily — the unlock currency.
@@ -548,11 +556,16 @@ struct DotConnectView: View {
                     .animation(.easeOut(duration: 0.2), value: viewModel.errorFlash)
 
                 if let puzzle = viewModel.puzzle {
-                    // Accepted lines (soft curves via slight midpoint lift)
+                    // Accepted lines: elegant arcs. Ring boards bow chords
+                    // toward the center (clears the rim dots); others get a
+                    // gentle length-proportional perpendicular bow.
+                    let boardCenter = CGPoint(x: size.width / 2, y: size.height / 2)
+                    let ring = viewModel.isRingBoard
                     ForEach(viewModel.connections, id: \.self) { pair in
                         let a = canvasPoint(puzzle.dots[pair[0]].point)
                         let b = canvasPoint(puzzle.dots[pair[1]].point)
-                        connectionCurve(from: a, to: b)
+                        connectionCurve(from: a, to: b,
+                                        towardCenter: ring ? boardCenter : nil)
                             .stroke(viewModel.color(of: puzzle.dots[pair[0]]).opacity(0.85),
                                     style: StrokeStyle(lineWidth: 7, lineCap: .round))
                             .shadow(color: viewModel.color(of: puzzle.dots[pair[0]]).opacity(0.6),
@@ -612,13 +625,28 @@ struct DotConnectView: View {
         .padding(.horizontal, ForestTheme.Metrics.screenPadding)
     }
 
-    /// Gentle curve: straight line lifted slightly at the midpoint.
-    private func connectionCurve(from a: CGPoint, to b: CGPoint) -> Path {
+    /// Elegant arc between dots. When `towardCenter` is set (ring boards)
+    /// the bow pulls inward — visually clearing the rim dots; otherwise a
+    /// perpendicular bow proportional to length.
+    private func connectionCurve(from a: CGPoint, to b: CGPoint,
+                                 towardCenter center: CGPoint? = nil) -> Path {
         var path = Path()
         let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
         let dx = b.x - a.x, dy = b.y - a.y
         let length = max(1, hypot(dx, dy))
-        let control = CGPoint(x: mid.x - dy / length * 10, y: mid.y + dx / length * 10)
+        let control: CGPoint
+        if let center {
+            // Bow toward the board center, stronger for longer chords.
+            let bow = min(0.30 * length, 46)
+            let toCenter = CGPoint(x: center.x - mid.x, y: center.y - mid.y)
+            let centerDistance = max(1, hypot(toCenter.x, toCenter.y))
+            control = CGPoint(x: mid.x + toCenter.x / centerDistance * bow * 2,
+                              y: mid.y + toCenter.y / centerDistance * bow * 2)
+        } else {
+            let bow = min(0.10 * length, 18)
+            control = CGPoint(x: mid.x - dy / length * bow * 2,
+                              y: mid.y + dx / length * bow * 2)
+        }
         path.move(to: a)
         path.addQuadCurve(to: b, control: control)
         return path

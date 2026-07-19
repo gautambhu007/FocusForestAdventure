@@ -192,8 +192,13 @@ struct DotConnectEngine: Sendable {
         let pairs = Int.random(in: difficulty.pairRange, using: &rng)
 
         if arrangement == .ring {
+            // Ring boards cap at 10 pairs: beyond 20 dots the circle gets so
+            // dense that chord-to-dot clearance is geometrically impossible
+            // (verified empirically — 16-pair rings never pass). Genius gets
+            // a pristine 10-pair ring or a full-size grid instead.
+            let ringPairs = min(pairs, 10)
             for _ in 0..<40 {
-                if let puzzle = ringAttempt(pairs: pairs,
+                if let puzzle = ringAttempt(pairs: ringPairs,
                                             duplicates: difficulty.usesDuplicateColors,
                                             using: &rng) {
                     return puzzle
@@ -274,6 +279,18 @@ struct DotConnectEngine: Sendable {
             match(Array(slice[(offset + 1)...]))
         }
         match(Array(0..<count))
+
+        // Reject boards where a chord grazes an uninvolved rim dot
+        // (short-span chords hug the circle) — lines must never appear
+        // to touch dots they don't connect.
+        for chord in chords {
+            for index in 0..<count where index != chord.0 && index != chord.1 {
+                if Self.distance(from: ringPoints[index],
+                                 toSegment: ringPoints[chord.0], ringPoints[chord.1]) < 0.028 {
+                    return nil
+                }
+            }
+        }
 
         // Reorder points so ids follow the pair layout used everywhere:
         // dot 2k and 2k+1 form solution pair k.

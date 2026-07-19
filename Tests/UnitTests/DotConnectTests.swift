@@ -53,8 +53,12 @@ final class DotConnectGeneratorTests: XCTestCase {
     let engine = DotConnectEngine()
 
     private func validate(_ puzzle: DotPuzzle, difficulty: DotDifficulty) {
-        // Sizing
-        XCTAssertTrue(difficulty.pairRange.contains(puzzle.pairCount),
+        // Sizing (ring boards legally cap at 10 pairs for chord clearance)
+        let isRing = puzzle.dots.allSatisfy {
+            abs(DotConnectEngine.distance($0.point, CGPoint(x: 0.5, y: 0.5)) - 0.40) < 0.02
+        }
+        XCTAssertTrue(difficulty.pairRange.contains(puzzle.pairCount)
+                      || (isRing && puzzle.pairCount == 10),
                       "\(difficulty): pair count \(puzzle.pairCount)")
         XCTAssertEqual(puzzle.dots.count, puzzle.pairCount * 2)
 
