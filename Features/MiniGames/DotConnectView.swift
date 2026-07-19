@@ -11,6 +11,66 @@
 import SwiftUI
 import Observation
 
+// MARK: - Cosmetic unlocks (earned with total puzzle stars)
+
+enum DotBoardTheme: String, CaseIterable, Identifiable {
+    case classic, meadow, dusk, night
+
+    var id: String { rawValue }
+
+    var localizedTitle: String {
+        switch self {
+        case .classic: String(localized: "Classic")
+        case .meadow: String(localized: "Meadow")
+        case .dusk: String(localized: "Dusk")
+        case .night: String(localized: "Night Sky")
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .classic: "☁️"
+        case .meadow: "🌿"
+        case .dusk: "🌆"
+        case .night: "🌌"
+        }
+    }
+
+    /// Total Smart Dots stars required.
+    var requiredStars: Int {
+        switch self {
+        case .classic: 0
+        case .meadow: 3
+        case .dusk: 6
+        case .night: 12
+        }
+    }
+}
+
+enum DotStyle: String, CaseIterable, Identifiable {
+    case circle, star, heart, hexagon
+
+    var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .circle: "circle.fill"
+        case .star: "star.fill"
+        case .heart: "heart.fill"
+        case .hexagon: "hexagon.fill"
+        }
+    }
+
+    var requiredStars: Int {
+        switch self {
+        case .circle: 0
+        case .star: 5
+        case .heart: 9
+        case .hexagon: 15
+        }
+    }
+}
+
 // MARK: - View model
 
 @Observable
@@ -50,6 +110,9 @@ final class DotConnectViewModel {
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
+        let defaults = UserDefaults.standard
+        self.theme = DotBoardTheme(rawValue: defaults.string(forKey: "dots.theme") ?? "") ?? .classic
+        self.dotStyle = DotStyle(rawValue: defaults.string(forKey: "dots.style") ?? "") ?? .circle
     }
 
     // MARK: Game lifecycle
@@ -219,6 +282,30 @@ final class DotConnectViewModel {
     static func bestStars(for key: String) -> Int {
         SyncedScoreStore.int(forKey: "dots.\(key)")
     }
+
+    // MARK: Cosmetics
+
+    /// Total stars across all difficulties + daily — the unlock currency.
+    static func totalDotStars() -> Int {
+        (DotDifficulty.allCases.map(\.rawValue) + ["daily"])
+            .reduce(0) { $0 + bestStars(for: $1) }
+    }
+
+    var theme: DotBoardTheme = .classic {
+        didSet { UserDefaults.standard.set(theme.rawValue, forKey: "dots.theme") }
+    }
+
+    var dotStyle: DotStyle = .circle {
+        didSet { UserDefaults.standard.set(dotStyle.rawValue, forKey: "dots.style") }
+    }
+
+    func isUnlocked(_ theme: DotBoardTheme) -> Bool {
+        Self.totalDotStars() >= theme.requiredStars
+    }
+
+    func isUnlocked(_ style: DotStyle) -> Bool {
+        Self.totalDotStars() >= style.requiredStars
+    }
 }
 
 // MARK: - Views
@@ -228,7 +315,7 @@ struct DotConnectView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Colors.cloudWhite.ignoresSafeArea()
+            themeBackground.ignoresSafeArea()
 
             if viewModel.puzzle != nil {
                 gameScreen
@@ -239,6 +326,18 @@ struct DotConnectView: View {
         .navigationTitle(String(localized: "🧠 Smart Dots"))
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { viewModel.close() }
+    }
+
+    @ViewBuilder
+    private var themeBackground: some View {
+        switch viewModel.theme {
+        case .classic: ForestTheme.Colors.cloudWhite
+        case .meadow: ForestTheme.Gradients.meadow
+        case .dusk: ForestTheme.Gradients.sunset
+        case .night: LinearGradient(colors: [Color(red: 0.08, green: 0.10, blue: 0.22),
+                                             Color(red: 0.16, green: 0.14, blue: 0.32)],
+                                    startPoint: .top, endPoint: .bottom)
+        }
     }
 
     // MARK: Menu
@@ -277,10 +376,80 @@ struct DotConnectView: View {
                 ) {
                     viewModel.startDaily()
                 }
+
+                unlocksSection
             }
             .padding(ForestTheme.Metrics.screenPadding)
             .adaptiveContentWidth(600)
         }
+    }
+
+    /// Themes + dot styles earned with total puzzle stars.
+    private var unlocksSection: some View {
+        VStack(spacing: 10) {
+            Text(String(localized: "🎨 Unlocks · \(DotConnectViewModel.totalDotStars()) ⭐ earned"))
+                .font(ForestTheme.Fonts.body)
+                .foregroundStyle(ForestTheme.Colors.deepGreen)
+
+            HStack(spacing: 10) {
+                ForEach(DotBoardTheme.allCases) { theme in
+                    let unlocked = viewModel.isUnlocked(theme)
+                    Button {
+                        if unlocked { viewModel.theme = theme }
+                    } label: {
+                        VStack(spacing: 2) {
+                            Text(unlocked ? theme.emoji : "🔒").font(.title2)
+                            Text(unlocked ? theme.localizedTitle : "\(theme.requiredStars)⭐")
+                                .font(ForestTheme.Fonts.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .forestCard(cornerRadius: 14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(viewModel.theme == theme && unlocked
+                                        ? ForestTheme.Colors.leafGreen : .clear, lineWidth: 3)
+                        )
+                        .opacity(unlocked ? 1 : 0.55)
+                    }
+                    .buttonStyle(SquishyButtonStyle())
+                    .accessibilityLabel(String(localized: "\(theme.localizedTitle) theme\(unlocked ? "" : ", locked, needs \(theme.requiredStars) stars")"))
+                }
+            }
+
+            HStack(spacing: 10) {
+                ForEach(DotStyle.allCases) { style in
+                    let unlocked = viewModel.isUnlocked(style)
+                    Button {
+                        if unlocked { viewModel.dotStyle = style }
+                    } label: {
+                        VStack(spacing: 2) {
+                            Image(systemName: unlocked ? style.symbol : "lock.fill")
+                                .font(.title2)
+                                .foregroundStyle(unlocked
+                                                 ? DotConnectViewModel.palette[style.requiredStars % 16]
+                                                 : .secondary)
+                            Text(unlocked ? " " : "\(style.requiredStars)⭐")
+                                .font(ForestTheme.Fonts.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .forestCard(cornerRadius: 14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(viewModel.dotStyle == style && unlocked
+                                        ? ForestTheme.Colors.leafGreen : .clear, lineWidth: 3)
+                        )
+                        .opacity(unlocked ? 1 : 0.55)
+                    }
+                    .buttonStyle(SquishyButtonStyle())
+                    .accessibilityLabel(String(localized: "Dot style\(unlocked ? "" : ", locked, needs \(style.requiredStars) stars")"))
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .forestCard(cornerRadius: 20)
     }
 
     private func menuCard(title: String, subtitle: String, best: Int,
@@ -360,10 +529,10 @@ struct DotConnectView: View {
     private var board: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            func canvasPoint(_ p: CGPoint) -> CGPoint {
+            let canvasPoint: (CGPoint) -> CGPoint = { p in
                 CGPoint(x: p.x * size.width, y: p.y * size.height)
             }
-            func normalized(_ p: CGPoint) -> CGPoint {
+            let normalized: (CGPoint) -> CGPoint = { p in
                 CGPoint(x: p.x / size.width, y: p.y / size.height)
             }
 
@@ -401,14 +570,15 @@ struct DotConnectView: View {
                                 style: StrokeStyle(lineWidth: 6, lineCap: .round, dash: [2, 8]))
                     }
 
-                    // Dots
+                    // Dots (in the unlocked style of choice)
                     ForEach(puzzle.dots) { dot in
                         let hinted = viewModel.hintPair?.contains(dot.id) == true
-                        Circle()
-                            .fill(viewModel.color(of: dot))
-                            .frame(width: 34, height: 34)
-                            .overlay(
-                                Circle().stroke(.white, lineWidth: viewModel.isConnected(dot.id) ? 4 : 2)
+                        Image(systemName: viewModel.dotStyle.symbol)
+                            .font(.system(size: 30))
+                            .foregroundStyle(viewModel.color(of: dot))
+                            .background(
+                                Circle().fill(.white.opacity(viewModel.isConnected(dot.id) ? 0.9 : 0.55))
+                                    .frame(width: 42, height: 42)
                             )
                             .scaleEffect(hinted ? 1.35 : 1.0)
                             .shadow(color: hinted ? ForestTheme.Colors.sunshine : .black.opacity(0.15),
