@@ -75,7 +75,7 @@ final class BubblePopViewModel {
             bubbles.append(Bubble(
                 position: CGPoint(x: .random(in: 0.15...0.85), y: 1.05),
                 size: .random(in: 44...74),
-                rise: .random(in: 0.008...0.016)
+                rise: .random(in: 0.012...0.022)
             ))
         }
 

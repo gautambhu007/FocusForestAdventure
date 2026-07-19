@@ -59,6 +59,13 @@ final class AdventureSelectViewModel {
         await start(.numbers, additionSection: section)
     }
 
+    /// Smart Dots IQ puzzle.
+    func dotConnectTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        dependencies.appState.navigationPath.append(.dotConnect)
+    }
+
     /// Hindi alphabet explorer (browse & listen — not a mission).
     func hindiAlphabetTapped() {
         dependencies.hapticsService.playGentleTap()
@@ -121,6 +128,25 @@ struct AdventureSelectView: View {
                                 Task { await viewModel.select(adventure) }
                             }
                         }
+
+                        // Smart Dots IQ puzzle
+                        Button {
+                            viewModel.dotConnectTapped()
+                        } label: {
+                            VStack(spacing: 8) {
+                                Text("🧠")
+                                    .font(.system(size: 38))
+                                Text(String(localized: "Smart Dots"))
+                                    .font(ForestTheme.Fonts.body)
+                                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 150)
+                            .background(ForestTheme.Colors.lavender.opacity(0.35))
+                            .forestCard()
+                        }
+                        .buttonStyle(SquishyButtonStyle())
+                        .accessibilityLabel(String(localized: "Smart Dots puzzle"))
+                        .accessibilityHint(String(localized: "Connect matching colors without crossing lines"))
 
                         // Hindi alphabet explorer
                         Button {

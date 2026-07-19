@@ -206,6 +206,7 @@ enum AppRoute: Hashable {
     case learningRewards
     case leafCatch
     case bubblePop
+    case dotConnect
     case settings
 }
 

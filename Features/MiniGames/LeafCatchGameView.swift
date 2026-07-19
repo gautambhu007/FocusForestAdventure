@@ -80,7 +80,7 @@ final class LeafCatchViewModel {
             leaves.append(Leaf(
                 position: CGPoint(x: .random(in: 0.12...0.88), y: -0.05),
                 symbol: ["🍃", "🍁", "🍂"].randomElement()!,
-                speed: .random(in: 0.010...0.022)
+                speed: .random(in: 0.014...0.029)
             ))
         }
 

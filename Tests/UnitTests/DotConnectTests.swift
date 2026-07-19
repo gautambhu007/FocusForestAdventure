@@ -1,0 +1,126 @@
+//
+//  DotConnectTests.swift
+//  FocusForestAdventureTests
+//
+//  Smart Dot Connect: segment geometry, generator guarantees (solvable,
+//  non-crossing, unique solution), difficulty sizing, daily determinism.
+//
+
+import XCTest
+@testable import FocusForestAdventure
+
+final class DotConnectGeometryTests: XCTestCase {
+
+    func testCrossingSegmentsDetected() {
+        XCTAssertTrue(DotConnectEngine.segmentsCross(
+            CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1),
+            CGPoint(x: 0, y: 1), CGPoint(x: 1, y: 0)
+        ))
+    }
+
+    func testParallelSegmentsDoNotCross() {
+        XCTAssertFalse(DotConnectEngine.segmentsCross(
+            CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0),
+            CGPoint(x: 0, y: 0.5), CGPoint(x: 1, y: 0.5)
+        ))
+    }
+
+    func testDisjointSegmentsDoNotCross() {
+        XCTAssertFalse(DotConnectEngine.segmentsCross(
+            CGPoint(x: 0, y: 0), CGPoint(x: 0.2, y: 0.2),
+            CGPoint(x: 0.8, y: 0.8), CGPoint(x: 1, y: 1)
+        ))
+    }
+
+    func testCollinearOverlapCountsAsCross() {
+        XCTAssertTrue(DotConnectEngine.segmentsCross(
+            CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0),
+            CGPoint(x: 0.5, y: 0), CGPoint(x: 1.5, y: 0)
+        ))
+    }
+
+    func testTouchingAtSharedPointCounts() {
+        // T-junction: endpoint of one lies on the other.
+        XCTAssertTrue(DotConnectEngine.segmentsCross(
+            CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0),
+            CGPoint(x: 0.5, y: 0), CGPoint(x: 0.5, y: 1)
+        ))
+    }
+}
+
+final class DotConnectGeneratorTests: XCTestCase {
+
+    let engine = DotConnectEngine()
+
+    private func validate(_ puzzle: DotPuzzle, difficulty: DotDifficulty) {
+        // Sizing
+        XCTAssertTrue(difficulty.pairRange.contains(puzzle.pairCount),
+                      "\(difficulty): pair count \(puzzle.pairCount)")
+        XCTAssertEqual(puzzle.dots.count, puzzle.pairCount * 2)
+
+        // Solution pairs are same-color and cover every dot exactly once
+        var seen = Set<Int>()
+        for pair in puzzle.solution {
+            XCTAssertEqual(puzzle.dots[pair[0]].colorIndex,
+                           puzzle.dots[pair[1]].colorIndex)
+            XCTAssertTrue(seen.isDisjoint(with: pair))
+            seen.formUnion(pair)
+        }
+        XCTAssertEqual(seen.count, puzzle.dots.count)
+
+        // Solution is non-crossing
+        for i in 0..<puzzle.solution.count {
+            for j in (i + 1)..<puzzle.solution.count {
+                let a = puzzle.solution[i], b = puzzle.solution[j]
+                XCTAssertFalse(DotConnectEngine.segmentsCross(
+                    puzzle.dots[a[0]].point, puzzle.dots[a[1]].point,
+                    puzzle.dots[b[0]].point, puzzle.dots[b[1]].point
+                ), "\(difficulty): solution lines must not cross")
+            }
+        }
+
+        // Exactly one solution
+        XCTAssertEqual(DotConnectEngine.countSolutions(of: puzzle, limit: 3), 1,
+                       "\(difficulty): puzzle must have a unique solution")
+    }
+
+    func testEveryDifficultyGeneratesValidUniquePuzzles() {
+        for difficulty in DotDifficulty.allCases {
+            var rng = SeededGenerator(seed: 12345)
+            let puzzle = engine.generate(difficulty: difficulty, using: &rng)
+            validate(puzzle, difficulty: difficulty)
+        }
+    }
+
+    func testRepeatedGenerationStaysValid() {
+        for seed in 1...5 {
+            var rng = SeededGenerator(seed: UInt64(seed) * 977)
+            let puzzle = engine.generate(difficulty: .medium, using: &rng)
+            validate(puzzle, difficulty: .medium)
+        }
+    }
+
+    func testHardBoardsUseDuplicateColorsForDeduction() {
+        // Duplicate-color grouping is probabilistic and uniqueness rejection
+        // can discard some rolls — assert it appears within several seeds.
+        var found = false
+        for seed in 1...12 where !found {
+            var rng = SeededGenerator(seed: UInt64(seed) * 7919)
+            let puzzle = engine.generate(difficulty: .hard, using: &rng)
+            let colorCounts = Dictionary(grouping: puzzle.dots, by: \.colorIndex)
+            found = colorCounts.values.contains { $0.count == 4 }
+        }
+        XCTAssertTrue(found, "Hard boards should regularly include a color with two pairs")
+    }
+
+    func testDailyPuzzleIsDeterministicPerDay() {
+        let day = Date(timeIntervalSince1970: 1_760_000_000)
+        let first = engine.dailyPuzzle(for: day)
+        let second = engine.dailyPuzzle(for: day)
+        XCTAssertEqual(first, second, "Same day must yield the same puzzle")
+
+        let nextDay = day.addingTimeInterval(86_400)
+        XCTAssertNotEqual(engine.dailyPuzzle(for: nextDay), first,
+                          "Different days should differ")
+    }
+}
