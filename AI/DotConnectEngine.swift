@@ -301,8 +301,46 @@ struct DotConnectEngine: Sendable {
             points.append(ringPoints[chord.1])
             segments.append((points.count - 2, points.count - 1))
         }
-        return finishPuzzle(points: points, segments: segments, pairs: pairs,
+
+        // Extra pairs INSIDE the circle (8+ pair boards): sampled in the
+        // inner disk, rejected on crossings/clearance vs the chords.
+        let innerPairs = pairs >= 8 ? 2 : 0
+        var innerTries = 0
+        var placed = 0
+        while placed < innerPairs {
+            innerTries += 1
+            if innerTries > 300 { return nil }
+            let a = randomInnerPoint(using: &rng)
+            let b = randomInnerPoint(using: &rng)
+            let length = Self.distance(a, b)
+            guard length > 0.10, length < 0.34 else { continue }
+            guard points.allSatisfy({ Self.distance($0, a) > 0.09 && Self.distance($0, b) > 0.09 }),
+                  Self.distance(a, b) > 0.09 else { continue }
+            let crossesAny = segments.contains { seg in
+                Self.segmentsCross(points[seg.0], points[seg.1], a, b)
+            }
+            guard !crossesAny else { continue }
+            let grazes = segments.contains { seg in
+                Self.distance(from: a, toSegment: points[seg.0], points[seg.1]) < 0.05 ||
+                Self.distance(from: b, toSegment: points[seg.0], points[seg.1]) < 0.05
+            } || points.indices.contains { index in
+                Self.distance(from: points[index], toSegment: a, b) < 0.05
+            }
+            guard !grazes else { continue }
+            points.append(a)
+            points.append(b)
+            segments.append((points.count - 2, points.count - 1))
+            placed += 1
+        }
+
+        return finishPuzzle(points: points, segments: segments, pairs: pairs + innerPairs,
                             duplicates: duplicates, requireUnique: true, using: &rng)
+    }
+
+    private func randomInnerPoint<R: RandomNumberGenerator>(using rng: inout R) -> CGPoint {
+        let angle = Double.random(in: 0..<(2 * .pi), using: &rng)
+        let radius = Double.random(in: 0.0...0.24, using: &rng)
+        return CGPoint(x: 0.5 + radius * cos(angle), y: 0.5 + radius * sin(angle))
     }
 
     // MARK: Scatter / grid boards (rejection sampling)

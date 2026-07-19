@@ -85,7 +85,11 @@ final class DotConnectViewModel {
         Color(red: 0.55, green: 0.6, blue: 0.3), Color(red: 0.45, green: 0.5, blue: 0.85),
         Color(red: 0.9, green: 0.4, blue: 0.6), Color(red: 0.3, green: 0.65, blue: 0.55),
         Color(red: 0.75, green: 0.45, blue: 0.45), Color(red: 0.5, green: 0.7, blue: 0.9),
-        Color(red: 0.8, green: 0.65, blue: 0.35), Color(red: 0.6, green: 0.45, blue: 0.7)
+        Color(red: 0.8, green: 0.65, blue: 0.35), Color(red: 0.6, green: 0.45, blue: 0.7),
+        Color(red: 0.25, green: 0.55, blue: 0.65), Color(red: 0.95, green: 0.6, blue: 0.5),
+        Color(red: 0.65, green: 0.75, blue: 0.4), Color(red: 0.8, green: 0.4, blue: 0.85),
+        Color(red: 0.45, green: 0.8, blue: 0.6), Color(red: 0.9, green: 0.5, blue: 0.25),
+        Color(red: 0.55, green: 0.55, blue: 0.95), Color(red: 0.7, green: 0.6, blue: 0.5)
     ]
 
     let dependencies: AppDependencies
@@ -95,6 +99,10 @@ final class DotConnectViewModel {
     private(set) var difficulty: DotDifficulty = .beginner
     private(set) var isDaily = false
     var relaxMode = false
+
+    /// Picture mode: connected lines form a scene; each stroke has its own
+    /// shade from the scene's palette.
+    private(set) var pictureScene: DotPictureScene?
 
     /// Accepted connections as sorted dot-id pairs.
     private(set) var connections: [[Int]] = []
@@ -130,11 +138,25 @@ final class DotConnectViewModel {
         load(engine.dailyPuzzle())
     }
 
+    func startPicture(_ scene: DotPictureScene) {
+        difficulty = .easy
+        isDaily = false
+        load(DotPictures.puzzle(for: scene))
+        pictureScene = scene
+    }
+
     func newPuzzle() {
-        isDaily ? startDaily() : start(difficulty)
+        if let scene = pictureScene {
+            startPicture(scene)
+        } else if isDaily {
+            startDaily()
+        } else {
+            start(difficulty)
+        }
     }
 
     private func load(_ newPuzzle: DotPuzzle) {
+        pictureScene = nil
         puzzle = newPuzzle
         connections = []
         hintPair = nil
@@ -145,7 +167,7 @@ final class DotConnectViewModel {
         dragPoint = nil
         dependencies.soundEngine.play(.cardFlip)
         if dependencies.appState.settings.isMusicEnabled {
-            dependencies.breakMusicEngine.start()
+            dependencies.breakMusicEngine.start(mood: .sparkle)
         }
         timerTask?.cancel()
         timerTask = Task { [weak self] in
@@ -170,7 +192,10 @@ final class DotConnectViewModel {
     }
 
     func color(of dot: DotPuzzle.Dot) -> Color {
-        Self.palette[dot.colorIndex % Self.palette.count]
+        if let scene = pictureScene, scene.strokes.indices.contains(dot.colorIndex) {
+            return scene.strokes[dot.colorIndex].color
+        }
+        return Self.palette[dot.colorIndex % Self.palette.count]
     }
 
     // MARK: Drag gameplay
@@ -246,9 +271,11 @@ final class DotConnectViewModel {
         dependencies.breakMusicEngine.stop()
         dependencies.hapticsService.playSuccess()
         dependencies.soundEngine.play(.starEarned)
-        SyncedScoreStore.set(stars, forKey: "dots.\(isDaily ? "daily" : difficulty.rawValue)")
+        let key = pictureScene.map { "picture.\($0.id)" } ?? (isDaily ? "daily" : difficulty.rawValue)
+        SyncedScoreStore.set(stars, forKey: "dots.\(key)")
         DailyStreak.recordActivity()
-        Task { await dependencies.speechService.speak(String(localized: "Amazing puzzle solving!")) }
+        let cheer = pictureScene?.revealTitle ?? String(localized: "Amazing puzzle solving!")
+        Task { await dependencies.speechService.speak(cheer) }
     }
 
     // MARK: Tools
@@ -283,19 +310,31 @@ final class DotConnectViewModel {
         SyncedScoreStore.int(forKey: "dots.\(key)")
     }
 
-    /// Ring boards (all dots ~0.40 from center) get chords bowed inward.
+    /// Ring boards (most dots ~0.40 from center — a few live inside) get
+    /// their rim chords bowed inward.
     var isRingBoard: Bool {
         guard let puzzle else { return false }
-        return puzzle.dots.allSatisfy { dot in
+        let onRim = puzzle.dots.filter { dot in
             abs(DotConnectEngine.distance(dot.point, CGPoint(x: 0.5, y: 0.5)) - 0.40) < 0.02
+        }.count
+        return onRim * 2 > puzzle.dots.count
+    }
+
+    /// Bow only chords whose BOTH endpoints are on the rim; inner
+    /// connections stay gently curved like scatter lines.
+    func isRimPair(_ pair: [Int]) -> Bool {
+        guard let puzzle else { return false }
+        return pair.allSatisfy { id in
+            abs(DotConnectEngine.distance(puzzle.dots[id].point, CGPoint(x: 0.5, y: 0.5)) - 0.40) < 0.02
         }
     }
 
     // MARK: Cosmetics
 
-    /// Total stars across all difficulties + daily — the unlock currency.
+    /// Total stars across difficulties, daily, and pictures — the unlock currency.
     static func totalDotStars() -> Int {
-        (DotDifficulty.allCases.map(\.rawValue) + ["daily"])
+        (DotDifficulty.allCases.map(\.rawValue) + ["daily"]
+            + DotPictures.scenes.map { "picture.\($0.id)" })
             .reduce(0) { $0 + bestStars(for: $1) }
     }
 
@@ -336,8 +375,22 @@ struct DotConnectView: View {
         .onDisappear { viewModel.close() }
     }
 
+    private var pictureSolved: Bool {
+        viewModel.pictureScene != nil && viewModel.solvedStars != nil
+    }
+
     @ViewBuilder
     private var themeBackground: some View {
+        if let scene = viewModel.pictureScene, pictureSolved {
+            LinearGradient(colors: scene.background, startPoint: .top, endPoint: .bottom)
+                .transition(.opacity)
+        } else {
+            standardBackground
+        }
+    }
+
+    @ViewBuilder
+    private var standardBackground: some View {
         switch viewModel.theme {
         case .classic: ForestTheme.Colors.cloudWhite
         case .meadow: ForestTheme.Gradients.meadow
@@ -383,6 +436,22 @@ struct DotConnectView: View {
                     best: DotConnectViewModel.bestStars(for: "daily")
                 ) {
                     viewModel.startDaily()
+                }
+
+                Text(String(localized: "🖼️ Picture Puzzles"))
+                    .font(ForestTheme.Fonts.body)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+
+                ForEach(DotPictures.scenes) { scene in
+                    menuCard(
+                        title: "\(scene.emoji) \(scene.title)",
+                        subtitle: String(localized: "Connect the dots to reveal the picture!"),
+                        best: DotConnectViewModel.bestStars(for: "picture.\(scene.id)")
+                    ) {
+                        viewModel.startPicture(scene)
+                    }
                 }
 
                 unlocksSection
@@ -546,14 +615,17 @@ struct DotConnectView: View {
 
             ZStack {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.background)
-                    .shadow(color: .black.opacity(0.08), radius: 10, y: 5)
+                    .fill(pictureSolved ? AnyShapeStyle(.clear) : AnyShapeStyle(.background))
+                    .shadow(color: .black.opacity(pictureSolved ? 0 : 0.08), radius: 10, y: 5)
                     .overlay(
                         RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(viewModel.errorFlash ? .red : ForestTheme.Colors.cardStroke.opacity(0.4),
+                            .stroke(viewModel.errorFlash ? .red
+                                    : pictureSolved ? .clear
+                                    : ForestTheme.Colors.cardStroke.opacity(0.4),
                                     lineWidth: viewModel.errorFlash ? 5 : 1.5)
                     )
                     .animation(.easeOut(duration: 0.2), value: viewModel.errorFlash)
+                    .animation(.smooth(duration: 0.8), value: pictureSolved)
 
                 if let puzzle = viewModel.puzzle {
                     // Accepted lines: elegant arcs. Ring boards bow chords
@@ -561,13 +633,18 @@ struct DotConnectView: View {
                     // gentle length-proportional perpendicular bow.
                     let boardCenter = CGPoint(x: size.width / 2, y: size.height / 2)
                     let ring = viewModel.isRingBoard
+                    let isPicture = viewModel.pictureScene != nil
                     ForEach(viewModel.connections, id: \.self) { pair in
                         let a = canvasPoint(puzzle.dots[pair[0]].point)
                         let b = canvasPoint(puzzle.dots[pair[1]].point)
-                        connectionCurve(from: a, to: b,
-                                        towardCenter: ring ? boardCenter : nil)
-                            .stroke(viewModel.color(of: puzzle.dots[pair[0]]).opacity(0.85),
-                                    style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        // Pictures draw with straight strokes (curves would
+                        // warp the scene); other boards get elegant arcs.
+                        (isPicture
+                         ? Path { p in p.move(to: a); p.addLine(to: b) }
+                         : connectionCurve(from: a, to: b,
+                                           towardCenter: ring && viewModel.isRimPair(pair) ? boardCenter : nil))
+                            .stroke(viewModel.color(of: puzzle.dots[pair[0]]).opacity(pictureSolved ? 1 : 0.85),
+                                    style: StrokeStyle(lineWidth: pictureSolved ? 10 : 7, lineCap: .round))
                             .shadow(color: viewModel.color(of: puzzle.dots[pair[0]]).opacity(0.6),
                                     radius: 6)
                     }
@@ -593,9 +670,11 @@ struct DotConnectView: View {
                                 Circle().fill(.white.opacity(viewModel.isConnected(dot.id) ? 0.9 : 0.55))
                                     .frame(width: 42, height: 42)
                             )
-                            .scaleEffect(hinted ? 1.35 : 1.0)
+                            .scaleEffect(hinted ? 1.35 : pictureSolved ? 0.45 : 1.0)
+                            .opacity(pictureSolved ? 0.55 : 1.0)
                             .shadow(color: hinted ? ForestTheme.Colors.sunshine : .black.opacity(0.15),
                                     radius: hinted ? 12 : 3)
+                            .animation(.smooth(duration: 0.8), value: pictureSolved)
                             .position(canvasPoint(dot.point))
                             .animation(.bouncy(duration: 0.35), value: hinted)
                             .animation(.bouncy(duration: 0.35), value: viewModel.isConnected(dot.id))
@@ -658,9 +737,10 @@ struct DotConnectView: View {
                 VStack(spacing: 10) {
                     Text(String(repeating: "⭐", count: stars))
                         .font(.system(size: 44))
-                    Text(stars == 3 ? String(localized: "Genius! Fast and flawless!")
-                         : stars == 2 ? String(localized: "Brilliant — no hints!")
-                         : String(localized: "Puzzle solved!"))
+                    Text(viewModel.pictureScene?.revealTitle
+                         ?? (stars == 3 ? String(localized: "Genius! Fast and flawless!")
+                             : stars == 2 ? String(localized: "Brilliant — no hints!")
+                             : String(localized: "Puzzle solved!")))
                         .font(ForestTheme.Fonts.heading)
                         .foregroundStyle(ForestTheme.Colors.deepGreen)
                     HStack(spacing: 12) {

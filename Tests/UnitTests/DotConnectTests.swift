@@ -53,12 +53,14 @@ final class DotConnectGeneratorTests: XCTestCase {
     let engine = DotConnectEngine()
 
     private func validate(_ puzzle: DotPuzzle, difficulty: DotDifficulty) {
-        // Sizing (ring boards legally cap at 10 pairs for chord clearance)
-        let isRing = puzzle.dots.allSatisfy {
+        // Sizing. Ring boards legally cap rim chords at 10 pairs and may add
+        // up to 2 inner pairs — so their total lands in 3...12.
+        let rimCount = puzzle.dots.filter {
             abs(DotConnectEngine.distance($0.point, CGPoint(x: 0.5, y: 0.5)) - 0.40) < 0.02
-        }
+        }.count
+        let isRing = rimCount * 2 > puzzle.dots.count
         XCTAssertTrue(difficulty.pairRange.contains(puzzle.pairCount)
-                      || (isRing && puzzle.pairCount == 10),
+                      || (isRing && (3...12).contains(puzzle.pairCount)),
                       "\(difficulty): pair count \(puzzle.pairCount)")
         XCTAssertEqual(puzzle.dots.count, puzzle.pairCount * 2)
 
@@ -139,6 +141,49 @@ final class DotConnectGeneratorTests: XCTestCase {
             var rng = SeededGenerator(seed: UInt64(seed) * 613)
             let puzzle = engine.generate(difficulty: .genius, arrangement: .grid, using: &rng)
             validate(puzzle, difficulty: .genius)
+        }
+    }
+
+    func testInnerDotsAppearOnLargeRingBoards() {
+        // 8+ pair rings add 2 inner pairs — some dots must sit off the rim.
+        var found = false
+        for seed in 1...10 where !found {
+            var rng = SeededGenerator(seed: UInt64(seed) * 449)
+            let puzzle = engine.generate(difficulty: .hard, arrangement: .ring, using: &rng)
+            let inner = puzzle.dots.filter {
+                DotConnectEngine.distance($0.point, CGPoint(x: 0.5, y: 0.5)) < 0.30
+            }
+            found = inner.count >= 2
+            if found { validate(puzzle, difficulty: .hard) }
+        }
+        XCTAssertTrue(found, "Large ring boards should include inner dots")
+    }
+
+    func testPictureScenesAreValidPlayablePuzzles() {
+        for scene in DotPictures.scenes {
+            let puzzle = DotPictures.puzzle(for: scene)
+            XCTAssertEqual(puzzle.dots.count, scene.strokes.count * 2)
+            // Unique color per stroke → matching forced → single solution
+            XCTAssertEqual(DotConnectEngine.countSolutions(of: puzzle, limit: 3), 1,
+                           "\(scene.id): picture must be solvable and unique")
+            // Solution strokes never cross
+            for i in 0..<puzzle.solution.count {
+                for j in (i + 1)..<puzzle.solution.count {
+                    let a = puzzle.solution[i], b = puzzle.solution[j]
+                    XCTAssertFalse(DotConnectEngine.segmentsCross(
+                        puzzle.dots[a[0]].point, puzzle.dots[a[1]].point,
+                        puzzle.dots[b[0]].point, puzzle.dots[b[1]].point
+                    ), "\(scene.id): strokes \(i)/\(j) cross")
+                }
+            }
+            // Finger-sized dot spacing
+            for i in 0..<puzzle.dots.count {
+                for j in (i + 1)..<puzzle.dots.count where i / 2 != j / 2 {
+                    XCTAssertGreaterThan(
+                        DotConnectEngine.distance(puzzle.dots[i].point, puzzle.dots[j].point),
+                        0.05, "\(scene.id): dots \(i)/\(j) too close")
+                }
+            }
         }
     }
 

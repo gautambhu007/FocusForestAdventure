@@ -16,12 +16,42 @@ import Foundation
 import AVFoundation
 import os
 
+/// Which synthesized melody to play.
+enum MusicMood: Sendable {
+    case gentle    // slow breathing melody (movement breaks)
+    case sparkle   // brighter, quicker phrase (puzzles)
+
+    var notes: [Double] {
+        switch self {
+        case .gentle:
+            [261.63, 329.63, 392.00, 440.00, 523.25, 440.00, 392.00, 329.63]
+        case .sparkle:
+            [659.26, 783.99, 880.00, 1046.50, 987.77, 783.99, 659.26, 587.33]
+        }
+    }
+
+    var secondsPerNote: Double {
+        switch self {
+        case .gentle: 1.0
+        case .sparkle: 0.55
+        }
+    }
+
+    var volume: Float {
+        switch self {
+        case .gentle: 0.16
+        case .sparkle: 0.12
+        }
+    }
+}
+
 @MainActor
 final class BreakMusicEngine {
 
     private nonisolated static let log = Logger(subsystem: "com.focusforest.adventure", category: "music")
 
     private(set) var isPlaying = false
+    nonisolated(unsafe) private var mood: MusicMood = .gentle
 
     private nonisolated let workQueue = DispatchQueue(label: "com.focusforest.breakmusic", qos: .userInitiated)
     nonisolated(unsafe) private var engine: AVAudioEngine?
@@ -31,9 +61,10 @@ final class BreakMusicEngine {
         var sample: Int = 0
     }
 
-    func start() {
+    func start(mood: MusicMood = .gentle) {
         guard !isPlaying else { return }
         isPlaying = true
+        self.mood = mood
         workQueue.async { [weak self] in
             self?.startOnWorkQueue()
         }
@@ -64,12 +95,9 @@ final class BreakMusicEngine {
         let hardwareRate = audioEngine.outputNode.outputFormat(forBus: 0).sampleRate
         let sampleRate = hardwareRate > 0 ? hardwareRate : 44_100.0
 
-        // Slow, calm phrase: C4 E4 G4 A4 · C5 A4 G4 E4 (≈1s per note —
-        // stretch up on the rising notes, sink down on the falling ones).
-        let melody: [Double] = [261.63, 329.63, 392.00, 440.00,
-                                523.25, 440.00, 392.00, 329.63]
-        let samplesPerNote = Int(sampleRate * 1.0)
-        let volume: Float = 0.16   // audible under speech, never competing
+        let melody = mood.notes
+        let samplesPerNote = Int(sampleRate * mood.secondsPerNote)
+        let volume = mood.volume
         let clock = Clock()
 
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else {
@@ -87,9 +115,11 @@ final class BreakMusicEngine {
                 let inNote = Double(position % samplesPerNote) / sampleRate
                 let frequency = melody[noteIndex]
 
-                // Soft chime envelope: quick bloom, long fade.
+                // Soft chime envelope: quick bloom, long fade (scaled to
+                // the mood's note length).
+                let noteSeconds = Double(samplesPerNote) / sampleRate
                 let attack = min(inNote / 0.06, 1.0)
-                let release = max(0.0, 1.0 - inNote / 0.95)
+                let release = max(0.0, 1.0 - inNote / (noteSeconds * 0.95))
                 let envelope = attack * release * release
 
                 let t = Double(position) / sampleRate
