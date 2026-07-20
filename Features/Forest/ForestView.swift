@@ -62,6 +62,11 @@ final class ForestViewModel {
         dependencies.appState.navigationPath.append(.bubblePop)
     }
 
+    /// Voice for the 3D forest's learn cards and bunny hints.
+    func speakLine(_ text: String) {
+        Task { await dependencies.speechService.speak(text) }
+    }
+
     var unlocked: [ForestElement] { forest?.unlockedElements ?? [] }
     var nextUnlock: ForestElement? {
         ForestElement.allCases.first { !unlocked.contains($0) }
@@ -95,7 +100,8 @@ struct ForestView: View {
         // Double-tap zooms the 2D scene, then the REAL 3D world fades in:
         // walk with the joystick, look around, step inside buildings.
         .fullScreenCover(isPresented: $isImmersed) {
-            Forest3DExperience(unlocked: viewModel.unlocked) {
+            Forest3DExperience(unlocked: viewModel.unlocked,
+                               speak: { viewModel.speakLine($0) }) {
                 isImmersed = false
             }
         }

@@ -569,6 +569,15 @@ enum Forest3DBuilder {
         let foxes: [SCNNode]
         let rabbits: [SCNNode]
         let clouds: SCNNode
+        /// (x, z, radius) circles the camera can't walk through.
+        let obstacles: [(Float, Float, Float)]
+        /// River centerline samples for the fish to swim along.
+        let riverPath: [SCNVector3]
+        let riverMaterial: SCNMaterial?
+        let fish: [SCNNode]
+        let stars: [SCNNode]
+        let butterflies: [SCNNode]
+        let gardens: [SCNNode]
     }
 
     static func buildOutdoor(unlocked: [ForestElement], night: Bool) -> OutdoorWorld {
@@ -585,6 +594,7 @@ enum Forest3DBuilder {
             state = state &* 6364136223846793005 &+ 1442695040888963407
             return Float((state >> 33) & 0xFFFF) / Float(0xFFFF)
         }
+        var obstacles: [(Float, Float, Float)] = []
         let treeCount = has(.trees) ? 34 : 10
         for _ in 0..<treeCount {
             let x = (rnd() * 2 - 1) * (worldHalf - 12)
@@ -593,13 +603,45 @@ enum Forest3DBuilder {
             if abs(x) < 10 && abs(z - 55) < 14 { continue }
             if abs(x - (34 * sinf(z * 0.028) + 26)) < 6 { continue }
             if z < -60 { continue }
-            let t = tree(scale: 0.8 + rnd() * 0.9)
+            let scale = 0.8 + rnd() * 0.9
+            let t = tree(scale: scale)
             place(t, x: x, z: z, sink: 0.2)
             root.addChildNode(t)
+            obstacles.append((x, z, 0.7 * scale))
         }
 
-        if has(.flowers) { root.addChildNode(flowerField(count: 90, seed: 5)) }
-        if has(.river) { root.addChildNode(brook()) }
+        // The living carpet: tall grass, ferns, and learn-about plants
+        // scattered everywhere so the meadow never feels empty.
+        let plantKinds = ["tallgrass", "tallgrass", "tallgrass", "fern",
+                          "sunflower", "tulip", "daisy", "lavender",
+                          "mushroom", "berry"]
+        let plantCount = has(.flowers) ? 150 : 70
+        for i in 0..<plantCount {
+            let x = (rnd() * 2 - 1) * (worldHalf - 10)
+            let z = (rnd() * 2 - 1) * (worldHalf - 10)
+            if abs(x) < 6 && abs(z - 58) < 8 { continue }          // spawn glade
+            if abs(x - (34 * sinf(z * 0.028) + 26)) < 5 { continue }
+            if z < -62 { continue }
+            let p = plant(kind: plantKinds[i % plantKinds.count])
+            place(p, x: x, z: z, sink: 0.06)
+            root.addChildNode(p)
+        }
+
+        var riverPath: [SCNVector3] = []
+        var riverMaterial: SCNMaterial?
+        var fishNodes: [SCNNode] = []
+        if has(.river) {
+            let river = riverRibbon()
+            root.addChildNode(river.node)
+            riverPath = river.path
+            riverMaterial = river.material
+            let kinds = ["goldfish", "trout", "catfish"]
+            for i in 0..<6 {
+                let f = fish(kind: kinds[i % 3])
+                root.addChildNode(f)
+                fishNodes.append(f)
+            }
+        }
         if has(.rainbow) { root.addChildNode(rainbow()) }
         let cloudsNode = clouds()
         root.addChildNode(cloudsNode)
@@ -608,18 +650,50 @@ enum Forest3DBuilder {
         let home = cottage()
         place(home, x: 16, z: 42, sink: 0.25)
         root.addChildNode(home)
+        obstacles.append((16, 42, 3.8))
 
         if has(.castle) {
             let fort = castle()
             place(fort, x: 0, z: -88, sink: 0.4)
             root.addChildNode(fort)
+            obstacles.append((0, -88, 6.5))
         }
 
         if has(.treehouse) {
             let th = treehouseTree()
             place(th, x: -34, z: 8, sink: 0.3)
             root.addChildNode(th)
+            obstacles.append((-34, 8, 1.6))
         }
+
+        // Butterfly gardens (release captured butterflies here)
+        var gardens: [SCNNode] = []
+        for (gx, gz) in [(-14.0, 62.0), (48.0, 20.0)] {
+            let g = garden()
+            place(g, x: Float(gx), z: Float(gz), sink: 0.1)
+            root.addChildNode(g)
+            gardens.append(g)
+        }
+
+        // Collectible stars hidden around the world
+        var stars: [SCNNode] = []
+        let starSpots: [(Float, Float)] = [(-22, 22), (42, -12), (-62, -38), (72, 62),
+                                           (-92, 32), (20, 34), (-36, 2), (6, -78)]
+        for (i, spot) in starSpots.enumerated() {
+            let s = collectibleStar(index: i)
+            s.position = SCNVector3(spot.0,
+                                    terrainHeight(x: spot.0, z: spot.1) + 1.3,
+                                    spot.1)
+            root.addChildNode(s)
+            stars.append(s)
+        }
+
+        // The bunny guide waits near the spawn glade
+        let bunny = bunnyGuide()
+        place(bunny, x: -4, z: 56, sink: 0.1)
+        bunny.eulerAngles.y = .pi * 0.85   // faces the child at spawn
+        root.addChildNode(bunny)
+        obstacles.append((-4, 56, 1.0))
 
         // Creatures
         var foxes: [SCNNode] = []
@@ -639,26 +713,33 @@ enum Forest3DBuilder {
 
         var dragonSegments: [SCNNode] = []
         if has(.dragon) {
-            let d = dragon()
+            let d = dragonV2()
             root.addChildNode(d.root)
             dragonSegments = d.segments
         }
 
+        var butterflies: [SCNNode] = []
         if has(.butterflies) {
-            for i in 0..<6 {
-                let b = SCNNode(geometry: SCNPlane(width: 0.5, height: 0.4))
-                let hues: [CGFloat] = [0.08, 0.6, 0.9]
-                let m = material(ForestTextures.flower(hue: hues[i % 3]))
+            let hues: [CGFloat] = [0.08, 0.6, 0.9, 0.16]
+            for i in 0..<8 {
+                let b = SCNNode(geometry: SCNPlane(width: 0.55, height: 0.42))
+                let m = material(ForestTextures.butterfly(hue: hues[i % hues.count]))
                 m.isDoubleSided = true
+                m.transparencyMode = .aOne
                 b.geometry?.materials = [m]
-                b.name = "butterfly\(i)"
+                b.name = "bfly.\(i)"
                 b.constraints = [SCNBillboardConstraint()]
                 root.addChildNode(b)
+                butterflies.append(b)
             }
         }
 
         return OutdoorWorld(scene: scene, dragonSegments: dragonSegments,
-                            foxes: foxes, rabbits: rabbits, clouds: cloudsNode)
+                            foxes: foxes, rabbits: rabbits, clouds: cloudsNode,
+                            obstacles: obstacles, riverPath: riverPath,
+                            riverMaterial: riverMaterial, fish: fishNodes,
+                            stars: stars, butterflies: butterflies,
+                            gardens: gardens)
     }
 
     // MARK: - Interiors
@@ -670,19 +751,25 @@ enum Forest3DBuilder {
         let root = scene.rootNode
         scene.background.contents = ForestTextures.sky(night: night)
 
-        let w: CGFloat = 16, d: CGFloat = 12, h: CGFloat = 5.2
+        let w: CGFloat = 16, d: CGFloat = 12
+        // The castle hall soars four stories; homes are cozy.
+        let h: CGFloat = kind == .castle ? 15.5 : (kind == .treehouse ? 4.6 : 5.2)
         let wallMat: SCNMaterial
         let floorMat: SCNMaterial
+        let ceilingMat: SCNMaterial
         switch kind {
         case .castle:
-            wallMat = material(ForestTextures.stone, tileX: 3, tileY: 1.5)
+            wallMat = material(ForestTextures.stone, tileX: 3, tileY: 4)
             floorMat = material(ForestTextures.stone, tileX: 4, tileY: 3)
+            ceilingMat = material(ForestTextures.stone, tileX: 4, tileY: 3)
         case .cottage:
             wallMat = material(ForestTextures.plaster, tileX: 2, tileY: 1)
             floorMat = material(ForestTextures.planks, tileX: 3, tileY: 2)
+            ceilingMat = material(ForestTextures.planks, tileX: 3, tileY: 2)
         case .treehouse:
             wallMat = material(ForestTextures.planks, tileX: 3, tileY: 1.5)
             floorMat = material(ForestTextures.planks, tileX: 3, tileY: 2)
+            ceilingMat = material(ForestTextures.planks, tileX: 3, tileY: 2)
         }
 
         let floor = SCNNode(geometry: SCNBox(width: w, height: 0.3, length: d, chamferRadius: 0))
@@ -696,10 +783,28 @@ enum Forest3DBuilder {
         backWall.position = SCNVector3(0, Float(h) / 2, Float(-d / 2))
         root.addChildNode(backWall)
         for side: Float in [-1, 1] {
-            let wall = SCNNode(geometry: SCNBox(width: 0.3, height: h, length: d, chamferRadius: 0))
-            wall.geometry?.materials = [wallMat]
-            wall.position = SCNVector3(side * Float(w / 2), Float(h) / 2, 0)
-            root.addChildNode(wall)
+            if kind == .castle {
+                // Side walls with archway openings into the tunnel wings
+                for zSign: Float in [-1, 1] {
+                    let seg = SCNNode(geometry: SCNBox(width: 0.3, height: h,
+                                                       length: (d - 3.2) / 2, chamferRadius: 0))
+                    seg.geometry?.materials = [wallMat]
+                    seg.position = SCNVector3(side * Float(w / 2), Float(h) / 2,
+                                              zSign * Float(d / 4 + 0.8))
+                    root.addChildNode(seg)
+                }
+                let above = SCNNode(geometry: SCNBox(width: 0.3, height: h - 3.2,
+                                                     length: 3.2, chamferRadius: 0))
+                above.geometry?.materials = [wallMat]
+                above.position = SCNVector3(side * Float(w / 2),
+                                            Float(h) - Float(h - 3.2) / 2, 0)
+                root.addChildNode(above)
+            } else {
+                let wall = SCNNode(geometry: SCNBox(width: 0.3, height: h, length: d, chamferRadius: 0))
+                wall.geometry?.materials = [wallMat]
+                wall.position = SCNVector3(side * Float(w / 2), Float(h) / 2, 0)
+                root.addChildNode(wall)
+            }
         }
         for side: Float in [-1, 1] {
             let front = SCNNode(geometry: SCNBox(width: (w - 2.4) / 2, height: h, length: 0.3, chamferRadius: 0))
@@ -711,6 +816,17 @@ enum Forest3DBuilder {
         lintel.geometry?.materials = [wallMat]
         lintel.position = SCNVector3(0, Float(h) - Float(h - 3.0) / 2, Float(d / 2))
         root.addChildNode(lintel)
+
+        // A proper roof over every room
+        let ceiling = SCNNode(geometry: SCNBox(width: w, height: 0.3, length: d, chamferRadius: 0))
+        ceiling.geometry?.materials = [ceilingMat]
+        ceiling.position = SCNVector3(0, Float(h) + 0.15, 0)
+        root.addChildNode(ceiling)
+
+        if kind == .castle {
+            castleGrandHall(root: root, w: Float(w), d: Float(d), h: Float(h),
+                            wallMat: wallMat, floorMat: floorMat)
+        }
 
         // Glowing exit door in the doorway
         let exitDoor = SCNNode(geometry: SCNBox(width: 2.2, height: 2.9, length: 0.15, chamferRadius: 0.08))
@@ -738,6 +854,206 @@ enum Forest3DBuilder {
 
         furnish(kind, root: root, roomWidth: Float(w), roomDepth: Float(d))
         return scene
+    }
+
+    /// The castle atrium: four stories of balconies rising to a
+    /// chandelier, plus arched tunnels through the side walls into an
+    /// armory (right) and a library (left).
+    private static func castleGrandHall(root: SCNNode, w: Float, d: Float, h: Float,
+                                        wallMat: SCNMaterial, floorMat: SCNMaterial) {
+        let gold = colored(UIColor(red: 0.93, green: 0.78, blue: 0.35, alpha: 1))
+        let plankMat = material(ForestTextures.planks)
+
+        // Three balcony stories above the ground floor
+        for story in 1...3 {
+            let y = Float(story) * 3.8
+            for side: Float in [-1, 1] {
+                let ledge = SCNNode(geometry: SCNBox(width: 2.0, height: 0.25,
+                                                     length: CGFloat(d) - 1, chamferRadius: 0.03))
+                ledge.geometry?.materials = [floorMat]
+                ledge.position = SCNVector3(side * (w / 2 - 1.15), y, 0)
+                root.addChildNode(ledge)
+                for i in 0..<7 {
+                    let post = SCNNode(geometry: SCNCylinder(radius: 0.05, height: 0.8))
+                    post.geometry?.materials = [gold]
+                    post.position = SCNVector3(side * (w / 2 - 2.1), y + 0.5,
+                                               -d / 2 + 1 + Float(i) * (d - 2) / 6)
+                    root.addChildNode(post)
+                }
+                let rail = SCNNode(geometry: SCNBox(width: 0.09, height: 0.09,
+                                                    length: CGFloat(d) - 1, chamferRadius: 0.02))
+                rail.geometry?.materials = [gold]
+                rail.position = SCNVector3(side * (w / 2 - 2.1), y + 0.9, 0)
+                root.addChildNode(rail)
+            }
+            // Glowing story windows on the back wall
+            for wx: Float in [-3, 0, 3] {
+                let win = SCNNode(geometry: SCNBox(width: 0.9, height: 1.6, length: 0.1, chamferRadius: 0.05))
+                let m = colored(UIColor(red: 0.98, green: 0.86, blue: 0.55, alpha: 1))
+                m.emission.contents = UIColor(red: 0.98, green: 0.84, blue: 0.45, alpha: 1)
+                m.emission.intensity = 0.7
+                win.geometry?.materials = [m]
+                win.position = SCNVector3(wx, Float(story) * 3.8 + 1.6, -d / 2 + 0.2)
+                root.addChildNode(win)
+            }
+        }
+
+        // Chandelier under the roof
+        let ring = SCNNode(geometry: SCNTorus(ringRadius: 1.6, pipeRadius: 0.09))
+        ring.geometry?.materials = [gold]
+        ring.position = SCNVector3(0, h - 2.2, 0)
+        root.addChildNode(ring)
+        let chain = SCNNode(geometry: SCNCylinder(radius: 0.04, height: 2.0))
+        chain.geometry?.materials = [gold]
+        chain.position = SCNVector3(0, h - 1.1, 0)
+        root.addChildNode(chain)
+        for i in 0..<6 {
+            let a = Float(i) / 6 * 2 * .pi
+            let candle = SCNNode(geometry: SCNCylinder(radius: 0.06, height: 0.3))
+            candle.geometry?.firstMaterial?.diffuse.contents = UIColor.white
+            candle.position = SCNVector3(cosf(a) * 1.6, h - 2.0, sinf(a) * 1.6)
+            root.addChildNode(candle)
+            let flame = SCNNode(geometry: SCNSphere(radius: 0.08))
+            let fm = colored(UIColor(red: 1.0, green: 0.75, blue: 0.3, alpha: 1))
+            fm.emission.contents = fm.diffuse.contents
+            fm.emission.intensity = 1
+            flame.geometry?.materials = [fm]
+            flame.position = SCNVector3(cosf(a) * 1.6, h - 1.8, sinf(a) * 1.6)
+            root.addChildNode(flame)
+        }
+        let chandelierLight = SCNNode()
+        chandelierLight.light = SCNLight()
+        chandelierLight.light?.type = .omni
+        chandelierLight.light?.intensity = 500
+        chandelierLight.light?.color = UIColor(red: 1.0, green: 0.85, blue: 0.6, alpha: 1)
+        chandelierLight.position = SCNVector3(0, h - 2.5, 0)
+        root.addChildNode(chandelierLight)
+
+        // Tunnel wings + side rooms
+        for side: Float in [-1, 1] {
+            let tx = side * (w / 2 + 1.2)     // tunnel center
+            let rx = side * (w / 2 + 5.4)     // room center
+            // Tunnel floor/ceiling/walls (x: w/2 … w/2+2.4, z: ±1.6)
+            let tFloor = SCNNode(geometry: SCNBox(width: 2.4, height: 0.3, length: 3.2, chamferRadius: 0))
+            tFloor.geometry?.materials = [floorMat]
+            tFloor.position = SCNVector3(tx, -0.15, 0)
+            root.addChildNode(tFloor)
+            let tCeil = SCNNode(geometry: SCNBox(width: 2.4, height: 0.3, length: 3.2, chamferRadius: 0))
+            tCeil.geometry?.materials = [wallMat]
+            tCeil.position = SCNVector3(tx, 3.2, 0)
+            root.addChildNode(tCeil)
+            for zSign: Float in [-1, 1] {
+                let tWall = SCNNode(geometry: SCNBox(width: 2.4, height: 3.2, length: 0.3, chamferRadius: 0))
+                tWall.geometry?.materials = [wallMat]
+                tWall.position = SCNVector3(tx, 1.6, zSign * 1.6)
+                root.addChildNode(tWall)
+            }
+            // Archway crown at the hall-side entry
+            let arch = SCNNode(geometry: SCNTorus(ringRadius: 1.5, pipeRadius: 0.14))
+            arch.geometry?.materials = [gold]
+            arch.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+            arch.position = SCNVector3(side * (w / 2), 3.0, 0)
+            root.addChildNode(arch)
+            // Torch in the tunnel
+            let flame = SCNNode(geometry: SCNSphere(radius: 0.12))
+            let fm = colored(UIColor(red: 1.0, green: 0.62, blue: 0.2, alpha: 1))
+            fm.emission.contents = fm.diffuse.contents
+            fm.emission.intensity = 1
+            flame.geometry?.materials = [fm]
+            flame.position = SCNVector3(tx, 2.4, 1.35)
+            let torchLight = SCNLight()
+            torchLight.type = .omni; torchLight.intensity = 260
+            torchLight.color = UIColor(red: 1.0, green: 0.7, blue: 0.35, alpha: 1)
+            flame.light = torchLight
+            root.addChildNode(flame)
+
+            // Side room shell: 6×6, height 4
+            let rFloor = SCNNode(geometry: SCNBox(width: 6, height: 0.3, length: 6, chamferRadius: 0))
+            rFloor.geometry?.materials = [floorMat]
+            rFloor.position = SCNVector3(rx, -0.15, 0)
+            root.addChildNode(rFloor)
+            let rCeil = SCNNode(geometry: SCNBox(width: 6, height: 0.3, length: 6, chamferRadius: 0))
+            rCeil.geometry?.materials = [wallMat]
+            rCeil.position = SCNVector3(rx, 4.0, 0)
+            root.addChildNode(rCeil)
+            let outer = SCNNode(geometry: SCNBox(width: 0.3, height: 4, length: 6, chamferRadius: 0))
+            outer.geometry?.materials = [wallMat]
+            outer.position = SCNVector3(rx + side * 3, 2, 0)
+            root.addChildNode(outer)
+            for zSign: Float in [-1, 1] {
+                let rWall = SCNNode(geometry: SCNBox(width: 6, height: 4, length: 0.3, chamferRadius: 0))
+                rWall.geometry?.materials = [wallMat]
+                rWall.position = SCNVector3(rx, 2, zSign * 3)
+                root.addChildNode(rWall)
+            }
+            // Inner wall segments beside the tunnel mouth
+            for zSign: Float in [-1, 1] {
+                let seg = SCNNode(geometry: SCNBox(width: 0.3, height: 4, length: 1.4, chamferRadius: 0))
+                seg.geometry?.materials = [wallMat]
+                seg.position = SCNVector3(rx - side * 3, 2, zSign * 2.3)
+                root.addChildNode(seg)
+            }
+            let roomLamp = SCNNode()
+            roomLamp.light = SCNLight()
+            roomLamp.light?.type = .omni
+            roomLamp.light?.intensity = 320
+            roomLamp.light?.color = UIColor(red: 1.0, green: 0.88, blue: 0.7, alpha: 1)
+            roomLamp.position = SCNVector3(rx, 3.4, 0)
+            root.addChildNode(roomLamp)
+
+            if side > 0 {
+                // ARMORY: shields on the wall + crossed swords
+                for sz: Float in [-1.4, 1.4] {
+                    let shield = SCNNode(geometry: SCNSphere(radius: 0.55))
+                    let sm = colored(UIColor(red: 0.55, green: 0.35, blue: 0.25, alpha: 1))
+                    shield.geometry?.materials = [sm]
+                    shield.scale = SCNVector3(1, 1.2, 0.25)
+                    shield.position = SCNVector3(rx + side * 2.7, 2.2, sz)
+                    root.addChildNode(shield)
+                    let boss = SCNNode(geometry: SCNSphere(radius: 0.16))
+                    boss.geometry?.materials = [gold]
+                    boss.position = SCNVector3(rx + side * 2.5, 2.2, sz)
+                    root.addChildNode(boss)
+                }
+                for angle: Float in [-0.6, 0.6] {
+                    let blade = SCNNode(geometry: SCNBox(width: 0.12, height: 1.8, length: 0.04, chamferRadius: 0.02))
+                    blade.geometry?.firstMaterial?.diffuse.contents = UIColor(white: 0.8, alpha: 1)
+                    blade.position = SCNVector3(rx, 2.1, -2.8)
+                    blade.eulerAngles.z = angle
+                    root.addChildNode(blade)
+                    let hilt = SCNNode(geometry: SCNBox(width: 0.5, height: 0.1, length: 0.08, chamferRadius: 0.02))
+                    hilt.geometry?.materials = [gold]
+                    hilt.position = SCNVector3(rx - sinf(angle) * 0.6, 2.1 - cosf(angle) * 0.6, -2.8)
+                    hilt.eulerAngles.z = angle
+                    root.addChildNode(hilt)
+                }
+            } else {
+                // LIBRARY: two bookshelves full of rainbow books + reading rug
+                for sz: Float in [-1.6, 1.6] {
+                    let shelf = SCNNode(geometry: SCNBox(width: 0.5, height: 2.6, length: 2.4, chamferRadius: 0.03))
+                    shelf.geometry?.materials = [plankMat]
+                    shelf.position = SCNVector3(rx + side * 2.6, 1.3, sz)
+                    root.addChildNode(shelf)
+                    for row in 0..<3 {
+                        for slot in 0..<6 {
+                            let book = SCNNode(geometry: SCNBox(width: 0.3, height: 0.5,
+                                                                length: 0.22, chamferRadius: 0.01))
+                            let hue = CGFloat((row * 6 + slot) % 8) / 8
+                            book.geometry?.firstMaterial?.diffuse.contents =
+                                UIColor(hue: hue, saturation: 0.6, brightness: 0.85, alpha: 1)
+                            book.position = SCNVector3(rx + side * 2.35,
+                                                       0.6 + Float(row) * 0.8,
+                                                       sz - 1.0 + Float(slot) * 0.38)
+                            root.addChildNode(book)
+                        }
+                    }
+                }
+                let rug = SCNNode(geometry: SCNCylinder(radius: 1.2, height: 0.05))
+                rug.geometry?.materials = [material(ForestTextures.carpet)]
+                rug.position = SCNVector3(rx, 0.05, 0)
+                root.addChildNode(rug)
+            }
+        }
     }
 
     private static func furnish(_ kind: InteriorKind, root: SCNNode,

@@ -280,6 +280,121 @@ enum ForestTextures {
         }
     }
 
+    /// Tall meadow grass blades on a transparent background (billboard).
+    static var tallGrass: UIImage {
+        make("tallgrass", size: 128) { c, s, rng in
+            c.setLineCap(.round)
+            for _ in 0..<26 {
+                let g = rng.range(0.42, 0.75)
+                c.setStrokeColor(UIColor(red: g * 0.5, green: g, blue: g * 0.42, alpha: 0.95).cgColor)
+                c.setLineWidth(CGFloat(rng.range(2.2, 4.2)))
+                let x = rng.range(8, Double(s) - 8)
+                let top = rng.range(4, Double(s) * 0.45)
+                c.move(to: CGPoint(x: x, y: Double(s)))
+                c.addQuadCurve(to: CGPoint(x: x + rng.range(-22, 22), y: top),
+                               control: CGPoint(x: x + rng.range(-6, 6), y: Double(s) * 0.55))
+                c.strokePath()
+            }
+        }
+    }
+
+    /// A fern frond on a transparent background (billboard).
+    static var fern: UIImage {
+        make("fern", size: 128) { c, s, rng in
+            for stem in 0..<3 {
+                let baseX = Double(s) / 2 + Double(stem - 1) * 20
+                let lean = rng.range(-14, 14)
+                c.setStrokeColor(UIColor(red: 0.18, green: 0.45, blue: 0.22, alpha: 1).cgColor)
+                c.setLineWidth(2.4)
+                c.move(to: CGPoint(x: baseX, y: Double(s)))
+                c.addQuadCurve(to: CGPoint(x: baseX + lean, y: 14),
+                               control: CGPoint(x: baseX + lean / 2, y: Double(s) * 0.5))
+                c.strokePath()
+                for i in 0..<9 {
+                    let f = Double(i) / 9
+                    let y = Double(s) - f * (Double(s) - 20)
+                    let x = baseX + lean * f
+                    let len = 20 * (1 - f) + 4
+                    let g = rng.range(0.45, 0.7)
+                    c.setStrokeColor(UIColor(red: g * 0.45, green: g, blue: g * 0.42, alpha: 0.95).cgColor)
+                    c.setLineWidth(3.2)
+                    c.move(to: CGPoint(x: x - len, y: y - len * 0.25))
+                    c.addLine(to: CGPoint(x: x + len, y: y - len * 0.25))
+                    c.strokePath()
+                }
+            }
+        }
+    }
+
+    /// A golden five-point star with soft edges (collectible billboard).
+    static var goldStar: UIImage {
+        make("goldstar", size: 128) { c, s, _ in
+            let center = CGPoint(x: s / 2, y: s / 2)
+            let path = CGMutablePath()
+            for i in 0..<10 {
+                let r: CGFloat = i % 2 == 0 ? s * 0.46 : s * 0.20
+                let a = CGFloat(i) * .pi / 5 - .pi / 2
+                let p = CGPoint(x: center.x + cos(a) * r, y: center.y + sin(a) * r)
+                if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+            }
+            path.closeSubpath()
+            c.setShadow(offset: .zero, blur: 10,
+                        color: UIColor(red: 1, green: 0.85, blue: 0.3, alpha: 0.9).cgColor)
+            c.setFillColor(UIColor(red: 1.0, green: 0.80, blue: 0.25, alpha: 1).cgColor)
+            c.addPath(path); c.fillPath()
+            c.setShadow(offset: .zero, blur: 0, color: nil)
+            c.setFillColor(UIColor(red: 1.0, green: 0.93, blue: 0.6, alpha: 1).cgColor)
+            c.fillEllipse(in: CGRect(x: s / 2 - 9, y: s / 2 - 12, width: 18, height: 18))
+        }
+    }
+
+    /// A butterfly seen from above, wings open (billboard).
+    static func butterfly(hue: CGFloat) -> UIImage {
+        make("bfly\(Int(hue * 100))", size: 96) { c, s, _ in
+            let wing = UIColor(hue: hue, saturation: 0.6, brightness: 0.95, alpha: 0.95)
+            let wing2 = UIColor(hue: hue, saturation: 0.4, brightness: 1.0, alpha: 0.9)
+            c.setFillColor(wing.cgColor)
+            c.fillEllipse(in: CGRect(x: 6, y: 10, width: s * 0.42, height: s * 0.4))
+            c.fillEllipse(in: CGRect(x: s - 6 - s * 0.42, y: 10, width: s * 0.42, height: s * 0.4))
+            c.setFillColor(wing2.cgColor)
+            c.fillEllipse(in: CGRect(x: 14, y: s * 0.52, width: s * 0.3, height: s * 0.3))
+            c.fillEllipse(in: CGRect(x: s - 14 - s * 0.3, y: s * 0.52, width: s * 0.3, height: s * 0.3))
+            c.setFillColor(UIColor(red: 0.25, green: 0.2, blue: 0.18, alpha: 1).cgColor)
+            let body = CGRect(x: s / 2 - 3.5, y: 12, width: 7, height: s - 30)
+            c.addPath(CGPath(roundedRect: body, cornerWidth: 3.5, cornerHeight: 3.5, transform: nil))
+            c.fillPath()
+        }
+    }
+
+    /// A scalloped dragon-wing membrane (transparent background).
+    static var dragonWing: UIImage {
+        make("dragonwing", size: 128) { c, s, _ in
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 6, y: s - 8))
+            path.addLine(to: CGPoint(x: s * 0.5, y: 6))
+            path.addLine(to: CGPoint(x: s - 6, y: s * 0.3))
+            // scalloped bottom edge back to the root
+            path.addQuadCurve(to: CGPoint(x: s * 0.62, y: s * 0.62),
+                              control: CGPoint(x: s * 0.80, y: s * 0.62))
+            path.addQuadCurve(to: CGPoint(x: s * 0.34, y: s * 0.82),
+                              control: CGPoint(x: s * 0.46, y: s * 0.86))
+            path.addQuadCurve(to: CGPoint(x: 6, y: s - 8),
+                              control: CGPoint(x: s * 0.16, y: s * 1.0))
+            path.closeSubpath()
+            c.setFillColor(UIColor(red: 0.45, green: 0.80, blue: 0.60, alpha: 0.85).cgColor)
+            c.addPath(path); c.fillPath()
+            // wing fingers
+            c.setStrokeColor(UIColor(red: 0.20, green: 0.45, blue: 0.32, alpha: 0.8).cgColor)
+            c.setLineWidth(3)
+            for target in [CGPoint(x: s * 0.5, y: 8), CGPoint(x: s - 8, y: s * 0.3),
+                           CGPoint(x: s * 0.62, y: s * 0.60)] {
+                c.move(to: CGPoint(x: 8, y: s - 10))
+                c.addLine(to: target)
+            }
+            c.strokePath()
+        }
+    }
+
     /// A five-petal flower billboard (drawn, with transparency).
     static func flower(hue: CGFloat) -> UIImage {
         make("flower\(Int(hue * 100))", size: 64) { c, s, _ in
