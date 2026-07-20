@@ -14,7 +14,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            AnimatedForestBackground(density: viewModel.forestDensity)
+            MeadowBackground()
 
             VStack(spacing: 0) {
                 topBar
@@ -69,12 +69,13 @@ struct HomeView: View {
     private var bunnySection: some View {
         VStack(spacing: 12) {
             SpeechBubble(text: viewModel.bunnyGreeting)
+                .zIndex(1)
 
             Button {
                 viewModel.forestTapped()
             } label: {
-                LottieView(animation: .bunnyWave, loopMode: .loop)
-                    .frame(width: 200, height: 200)
+                CuteBunnyView()
+                    .frame(width: 160, height: 200)
             }
             .buttonStyle(SquishyButtonStyle())
             .accessibilityLabel(String(localized: "Bunny. Tap to visit your forest"))
