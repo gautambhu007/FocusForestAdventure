@@ -77,20 +77,7 @@ struct ForestView: View {
             ImmersiveForestScene(unlocked: viewModel.unlocked,
                                  isImmersed: $isImmersed)
 
-            if isImmersed {
-                // Inside the forest: just a whisper of a hint at the top.
-                VStack {
-                    Text(String(localized: "Double-tap to hop back out"))
-                        .font(ForestTheme.Fonts.caption)
-                        .foregroundStyle(.white.opacity(0.85))
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(.black.opacity(0.25), in: Capsule())
-                        .padding(.top, 8)
-                    Spacer()
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-            } else {
+            if !isImmersed {
                 VStack {
                     header
                     Spacer()
@@ -105,12 +92,19 @@ struct ForestView: View {
         .animation(.easeInOut(duration: 0.35), value: isImmersed)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // Double-tap zooms the 2D scene, then the REAL 3D world fades in:
+        // walk with the joystick, look around, step inside buildings.
+        .fullScreenCover(isPresented: $isImmersed) {
+            Forest3DExperience(unlocked: viewModel.unlocked) {
+                isImmersed = false
+            }
+        }
         .task { await viewModel.onAppear() }
     }
 
     /// Invitation to explore the world with fingers.
     private var explorerHint: some View {
-        Text(String(localized: "Drag to explore — double-tap to step inside!"))
+        Text(String(localized: "Drag to explore — double-tap to walk in 3D!"))
             .font(ForestTheme.Fonts.caption)
             .foregroundStyle(ForestTheme.Colors.deepGreen)
             .padding(.horizontal, 14).padding(.vertical, 6)

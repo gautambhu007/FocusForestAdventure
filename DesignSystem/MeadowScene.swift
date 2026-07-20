@@ -285,14 +285,21 @@ struct HoppingRabbits: View {
                tint: Color(red: 0.84, green: 0.82, blue: 0.84))
     ]
 
+    /// Ground height fraction at horizontal fraction f — runs parallel to
+    /// the near hill's sine crest so rabbits ride up and down the slope.
+    private func ground(_ f: Double) -> Double {
+        Double(groundLine) + 0.045 * sin((f * 0.8 + 0.55) * 2 * .pi)
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width
-            let baseY = proxy.size.height * groundLine
+            let h = proxy.size.height
             if reduceMotion {
-                RabbitProfile().scaleEffect(0.8).position(x: w * 0.25, y: baseY)
+                RabbitProfile().scaleEffect(0.8)
+                    .position(x: w * 0.25, y: h * ground(0.25))
                 RabbitProfile(tint: Color(red: 0.9, green: 0.86, blue: 0.8))
-                    .scaleEffect(0.6).position(x: w * 0.7, y: baseY + 6)
+                    .scaleEffect(0.6).position(x: w * 0.7, y: h * ground(0.7) + 6)
             } else {
                 TimelineView(.animation(minimumInterval: 1.0 / 40.0)) { timeline in
                     let t = timeline.date.timeIntervalSinceReferenceDate
@@ -301,6 +308,11 @@ struct HoppingRabbits: View {
                         let travel = (t * c.speed + c.phase)
                             .truncatingRemainder(dividingBy: 1)
                         let x = travel * (w + 140) - 70
+                        let f = x / w
+                        // Follow the hill: height AND slope at this x.
+                        let baseY = h * ground(f)
+                        let dyDf = h * 0.045 * 0.8 * 2 * .pi * cos((f * 0.8 + 0.55) * 2 * .pi)
+                        let slopeDeg = atan2(dyDf, w + 140) * 180 / .pi
                         // Hop cycle: 65% airborne, 35% crouched on the ground.
                         let ph = ((t + c.phase * 7) / 0.62)
                             .truncatingRemainder(dividingBy: 1)
@@ -312,7 +324,7 @@ struct HoppingRabbits: View {
                             .scaleEffect(x: airborne ? 0.97 : 1.1,
                                          y: airborne ? 1.06 : 0.86,
                                          anchor: .bottom)
-                            .rotationEffect(.degrees(pitch))
+                            .rotationEffect(.degrees(pitch + slopeDeg))
                             .scaleEffect(c.scale)
                             .position(x: x, y: baseY + dy)
                     }
