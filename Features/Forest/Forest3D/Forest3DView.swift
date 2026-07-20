@@ -20,10 +20,11 @@ import SpriteKit
 
 // MARK: - Shared control state (SwiftUI joystick → render loop)
 
-final class Forest3DControls {
-    nonisolated(unsafe) var moveX: Float = 0      // -1…1 strafe
-    nonisolated(unsafe) var moveY: Float = 0      // -1…1 forward/back
-    nonisolated init() {}
+/// Two floats written by the SwiftUI joystick (main thread) and read by
+/// the render loop — single-writer, so unchecked is safe here.
+final class Forest3DControls: @unchecked Sendable {
+    var moveX: Float = 0      // -1…1 strafe
+    var moveY: Float = 0      // -1…1 forward/back
 }
 
 // MARK: - The SwiftUI experience (SCNView + joystick + hints)
@@ -158,7 +159,13 @@ struct Forest3DViewRepresentable: UIViewRepresentable {
 }
 
 // MARK: - Coordinator: camera rig, gestures, per-frame world animation
+//
+// MainActor for everything UIKit (gestures, SCNView, scene swaps);
+// only the render callback is nonisolated and it touches exclusively
+// nonisolated(unsafe) state + SceneKit nodes (render-thread mutation is
+// SceneKit's documented model).
 
+@MainActor
 final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
 
     private let unlocked: [ForestElement]
@@ -246,7 +253,7 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(yawNode)
     }
 
-    private func heightAt(x: Float, z: Float) -> Float {
+    nonisolated private func heightAt(x: Float, z: Float) -> Float {
         Forest3DBuilder.terrainHeight(x: x, z: z)
     }
 
@@ -306,9 +313,8 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
         let room = Forest3DBuilder.buildInterior(kind, night: night)
         installRig(in: room, position: SCNVector3(0, 1.75, 3.8), yaw: .pi)
         view.present(room, with: SKTransition.crossFade(withDuration: 0.7),
-                     incomingPointOfView: cameraNode) { [weak self] in
-            self?.transitioning = false
-        }
+                     incomingPointOfView: cameraNode)
+        endTransitionSoon()
         onModeChange(kind.rawValue)
     }
 
@@ -319,10 +325,17 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
         installRig(in: world.scene,
                    position: savedOutdoorPosition, yaw: savedOutdoorYaw)
         view.present(world.scene, with: SKTransition.crossFade(withDuration: 0.7),
-                     incomingPointOfView: cameraNode) { [weak self] in
+                     incomingPointOfView: cameraNode)
+        endTransitionSoon()
+        onModeChange(nil)
+    }
+
+    /// Debounce taps while a crossfade is running (stays on MainActor).
+    private func endTransitionSoon() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 800_000_000)
             self?.transitioning = false
         }
-        onModeChange(nil)
     }
 
     // MARK: Per-frame world simulation (render thread)
@@ -343,7 +356,7 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
         world.clouds.eulerAngles.y = Float(time * 0.008)
     }
 
-    private func moveCamera(dt: Float) {
+    nonisolated private func moveCamera(dt: Float) {
         let vx = controls.moveX
         let vy = controls.moveY
         guard vx != 0 || vy != 0 else { return }
@@ -366,7 +379,7 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
         yawNode.position = p
     }
 
-    private func animateCreatures(world: Forest3DBuilder.OutdoorWorld, t: TimeInterval) {
+    nonisolated private func animateCreatures(world: Forest3DBuilder.OutdoorWorld, t: TimeInterval) {
         // Foxes lope in loops around their own meadows
         let foxHomes: [(Float, Float, Float)] = [(-16, 30, 13), (28, -6, 16), (-5, -28, 12)]
         for (i, fox) in world.foxes.enumerated() {
