@@ -54,6 +54,9 @@ final class ChildProfile {
     var puzzleGems: Int = 0
     var puzzlePieces: Int = 0
     var puzzleBadgesRaw: [String] = []
+    /// Collectible ids the child owns, and the friend currently at their side.
+    var ownedCollectiblesRaw: [String] = []
+    var activeCompanionID: String = ""
     var puzzlesAttempted: Int = 0
     var puzzlesSolved: Int = 0
     /// Running sum of (duration ÷ time limit) — the processing-speed signal.
@@ -63,6 +66,11 @@ final class ChildProfile {
     var puzzleBadges: Set<PuzzleBadge> {
         get { Set(puzzleBadgesRaw.compactMap(PuzzleBadge.init(rawValue:))) }
         set { puzzleBadgesRaw = newValue.map(\.rawValue).sorted() }
+    }
+
+    var ownedCollectibles: Set<String> {
+        get { Set(ownedCollectiblesRaw) }
+        set { ownedCollectiblesRaw = newValue.sorted() }
     }
 
     init(name: String, avatarEmoji: String = "🐰", birthYear: Int = 2021) {
@@ -339,6 +347,10 @@ final class PuzzleProgress {
     var starsEarned: Int = 0
     /// The world's boss has been beaten and its crystal won.
     var crystalEarned: Bool = false
+    /// Mural tiles revealed so far (0…9), one per puzzle piece placed.
+    var muralTilesPlaced: Int = 0
+    /// The mural's completion bonus has been paid.
+    var muralBonusPaid: Bool = false
     var updatedAt: Date = Date()
     /// Compact history for the adaptive rung: first-try accuracy of the last
     /// few runs, most recent first. Attempts themselves aren't persisted.

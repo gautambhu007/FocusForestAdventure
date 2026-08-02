@@ -142,6 +142,12 @@ struct PuzzleProgressSnapshot: Hashable, Sendable {
     /// Most-recent-first results, for the adaptive rung.
     var recentResults: [PuzzleRunResult] = []
 
+    /// Collectibles owned, and the friend currently at the child's side.
+    var owned: Set<String> = []
+    var companionID: String = ""
+    /// Mural tiles revealed per world (0…9).
+    var muralTiles: [PuzzleWorld: Int] = [:]
+
     // Aggregate signals for the cognitive profile.
     var puzzlesAttempted: Int = 0
     var puzzlesSolved: Int = 0
@@ -178,6 +184,17 @@ struct PuzzleProgressSnapshot: Hashable, Sendable {
 
     var solveRate: Double {
         puzzlesAttempted == 0 ? 0 : Double(puzzlesSolved) / Double(puzzlesAttempted)
+    }
+
+    var companion: Collectible? {
+        companionID.isEmpty ? nil : CollectibleCatalog.item(companionID)
+    }
+
+    func muralPlaced(_ world: PuzzleWorld) -> Int { muralTiles[world] ?? 0 }
+
+    /// Worlds whose mural still has room for a piece.
+    var muralsInProgress: [PuzzleWorld] {
+        PuzzleWorld.allCases.filter { muralPlaced($0) < WorldMural.tileCount }
     }
 }
 

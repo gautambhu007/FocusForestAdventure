@@ -64,9 +64,30 @@ protocol CustomWordRepository {
 protocol PuzzleRepository {
     /// Everything the progression engine needs, in one read.
     func snapshot(for child: ChildProfile) throws -> PuzzleProgressSnapshot
-    /// Apply a finished level: progress, per-skill tallies, coins, badges.
+    /// Apply a finished level: progress, per-skill tallies, gems, badges.
     /// Returns the badges newly earned so the UI can celebrate them.
     func record(_ result: PuzzleRunResult, nextDifficulty: Int, for child: ChildProfile) throws -> [PuzzleBadge]
+    /// Gems earned outside a level (mystery chest, streak reward).
+    func awardGems(_ amount: Int, to child: ChildProfile) throws
+    /// Spend gems on a collectible. Returns false when the child can't
+    /// afford it or already owns it — never a thrown error, because this is
+    /// a child-facing action.
+    @discardableResult
+    func purchase(_ collectible: Collectible, for child: ChildProfile) throws -> Bool
+    func setCompanion(_ collectibleID: String, for child: ChildProfile) throws
+    /// Spend one 🧩 piece to reveal the next tile of a world's mural.
+    /// Returns the gem bonus paid if that tile completed the picture.
+    func placeMuralPiece(in world: PuzzleWorld, for child: ChildProfile) throws -> MuralPlacement
+}
+
+/// What happened when a piece was placed.
+struct MuralPlacement: Sendable, Equatable {
+    var placed: Bool
+    var tilesPlaced: Int
+    var completedNow: Bool
+    var bonusGems: Int
+
+    static let notPlaced = MuralPlacement(placed: false, tilesPlaced: 0, completedNow: false, bonusGems: 0)
 }
 
 // MARK: - Domain value types
@@ -286,6 +307,7 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
             snapshot.difficulty[row.world] = row.difficulty
             snapshot.totalStars += row.starsEarned
             if row.crystalEarned { snapshot.crystals.insert(row.world) }
+            snapshot.muralTiles[row.world] = row.muralTilesPlaced
             // Rebuild the adaptive window from the compact history.
             for (index, accuracy) in row.recentAccuracy.enumerated() {
                 snapshot.recentResults.append(
@@ -307,6 +329,8 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
         snapshot.gems = child.puzzleGems
         snapshot.pieces = child.puzzlePieces
         snapshot.badges = child.puzzleBadges
+        snapshot.owned = child.ownedCollectibles
+        snapshot.companionID = child.activeCompanionID
         snapshot.puzzlesAttempted = child.puzzlesAttempted
         snapshot.puzzlesSolved = child.puzzlesSolved
         snapshot.speedRatioSum = child.puzzleSpeedRatioSum
@@ -353,6 +377,59 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
 
         try context.save()
         return earned
+    }
+
+    func awardGems(_ amount: Int, to child: ChildProfile) throws {
+        guard amount > 0 else { return }
+        child.puzzleGems += amount
+        try context.save()
+    }
+
+    @discardableResult
+    func purchase(_ collectible: Collectible, for child: ChildProfile) throws -> Bool {
+        guard !child.ownedCollectibles.contains(collectible.id) else { return false }
+        guard child.puzzleGems >= collectible.price else { return false }
+        child.puzzleGems -= collectible.price
+        child.ownedCollectibles.insert(collectible.id)
+        // The first friend adopted becomes the companion automatically —
+        // an unworn purchase would be a confusing first experience.
+        if collectible.kind == .companion, child.activeCompanionID.isEmpty {
+            child.activeCompanionID = collectible.id
+        }
+        try context.save()
+        return true
+    }
+
+    func setCompanion(_ collectibleID: String, for child: ChildProfile) throws {
+        guard child.ownedCollectibles.contains(collectibleID) else { return }
+        child.activeCompanionID = collectibleID
+        try context.save()
+    }
+
+    func placeMuralPiece(in world: PuzzleWorld, for child: ChildProfile) throws -> MuralPlacement {
+        let row = progressRow(for: child, world: world)
+        guard child.puzzlePieces > 0, row.muralTilesPlaced < WorldMural.tileCount else {
+            return .notPlaced
+        }
+        child.puzzlePieces -= 1
+        row.muralTilesPlaced += 1
+
+        let mural = MuralCatalog.mural(for: world)
+        var bonus = 0
+        var completedNow = false
+        if mural.isComplete(row.muralTilesPlaced), !row.muralBonusPaid {
+            row.muralBonusPaid = true
+            completedNow = true
+            bonus = mural.completionBonus
+            child.puzzleGems += bonus
+        }
+        try context.save()
+        return MuralPlacement(
+            placed: true,
+            tilesPlaced: row.muralTilesPlaced,
+            completedNow: completedNow,
+            bonusGems: bonus
+        )
     }
 
     private func progressRow(for child: ChildProfile, world: PuzzleWorld) -> PuzzleProgress {

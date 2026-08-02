@@ -127,6 +127,8 @@ struct RootView: View {
             PuzzleWorldsView(viewModel: PuzzleWorldsViewModel(dependencies: dependencies))
         case .puzzleRun(let run):
             PuzzleRunView(viewModel: PuzzleRunViewModel(run: run, dependencies: dependencies))
+        case .puzzleCollection:
+            PuzzleCollectionView(viewModel: PuzzleCollectionViewModel(dependencies: dependencies))
         case .listeningHub:
             ListeningHubView(viewModel: ListeningHubViewModel(dependencies: dependencies))
         case .listeningMyWords:

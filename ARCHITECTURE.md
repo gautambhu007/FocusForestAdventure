@@ -182,6 +182,105 @@ never stored) and `PuzzleSkillStat` (per child × skill), plus coins and badges
 on `ChildProfile`. The compact history is what lets the adaptive rung survive
 a relaunch without persisting every tap.
 
+## 4f. Puzzle Adventure World — the campaign layer
+
+**Story is data.** `BrainlandStory` is the whole script: prologue, nine
+worlds, their casts, and a `StoryChapter` list per world. A chapter joins a
+story name to a generator rule ("Hidden Acorns" → `.hiddenObject`), so adding
+a level is a data edit. Nothing about the narrative is generated — same rule
+as the Bunny assistant (4b): a child can never be told unreviewed prose.
+
+**Worlds are earned, difficulty is separate.** `PuzzleWorld` decides what a
+puzzle is *about*; `PuzzleSkill`'s eight rungs decide how hard. A world opens
+when the previous world's crystal is won — or, for a child old enough who is
+already five levels in, early, so a stuck boss can never end the campaign.
+The Rainbow Kingdom needs all seven story crystals. Each world is its
+chapters plus one boss; the boss is longer, harder, pays double, and awards
+the crystal.
+
+**Theming lives in the vocabulary.** `PuzzleMotif` is either a tintable shape
+or a story picture. Worlds draw their boards from their own cast, *except*
+where the rule is about color (`PuzzleKind.needsTintableShapes`) — "the red
+one" has to mean something, and a picture's color isn't ours to change.
+
+**Six answer modes, one renderer.** `.options` (tap a chip), `.tapTile`
+(tap the odd one), `.tapMany` (find them all), `.tapPath` (walk a route),
+`.assemble` (pick a piece, then tap where it goes), and `.rotateTiles` (turn
+things until they line up). `Puzzle.correctIDs` is a set so correctness is
+one containment check in every mode. `peekDuration`
+drives the memory puzzles: the board is shown, then covered, and the clock
+for that puzzle only starts once it goes down — looking isn't answering.
+
+**Mazes.** `PuzzleTileRole` marks start/goal/hazard/key; `MazeRules` holds
+the walking rules as pure functions (`canStep`, `isComplete`,
+`hasRouteRemaining`) so they're tested without a view. The generator carves
+the safe route *first* and only ever places hazards off it, so an unsolvable
+board is impossible by construction — there is no retry loop. Reaching for a
+non-adjacent square is treated as a mis-tap (a shake, uncounted), not a wrong
+answer; only walking into a hazard counts. Stepping onto the previous cell is
+an undo, "Step Back" is always available, and `hasRouteRemaining` lets the
+app spot a dead end and say so kindly rather than leaving a child stuck.
+
+**Mental rotation.** `PuzzlePattern` is a little block of filled cells with
+`rotated()`, `mirrored()`, and `isRotation(of:)`. Block-rotation puzzles are
+fair because of two guards: the shown block is chosen to have four *different*
+orientations (`hasDistinctRotations` — a symmetric block would have several
+right answers), and every distractor is checked against all four turns of the
+original, so a decoy can never be accidentally correct. A mirror image is the
+best distractor precisely because it is never a rotation.
+
+**Assembly.** `.slot` tiles carry the glyph they want and draw it as a faint
+silhouette; the piece bank is the options row. Correctness is a glyph
+comparison at drop time, so no separate slot→piece map is needed. Picking a
+piece up is free (tap another to swap, tap the held one to put it back) and a
+piece dropped in the wrong place bounces back to the bank rather than being
+consumed. From rung 4 a spare piece appears, so the bank has to be read
+rather than just emptied.
+
+**Pipes.** `PipeConnections` is an `OptionSet` of open sides with `rotated()`
+and `opposite`; `PipeRules` holds the flow rules (`rotating`, `flooded`,
+`isConnected`) as pure functions. Water crosses only when *both* neighbours
+open onto each other — one arm facing a closed side is a leak, not a join.
+Built like the maze: the working pipeline is laid down first and then every
+tile is turned, so solvability is guaranteed and the only thing the generator
+has to check afterwards is that the scramble didn't leave the board already
+solved (straight pipes look identical after a half turn, so a "turned" tile
+isn't always a changed one). Turning a pipe is never a *miss* — there is no
+wrong tap, only a board that isn't joined up yet — and the flooded set drives
+both the blue "water" colouring and a "3 of 9 pipes joined" progress line.
+
+**Murals.** `MuralCatalog` gives each world a nine-tile picture. A 🧩 piece is
+spent to reveal one tile, by choice rather than automatically — a reward you
+*do* something with lands harder than a number going up on its own — and
+finishing a picture pays a one-time gem bonus (`muralBonusPaid` guards it).
+
+**Two currencies, two feelings.** 💎 gems are earned every level and spent
+freely in `CollectibleCatalog` (cosmetic only — a locked item is never a
+disadvantage); 🧩 pieces accumulate slowly. Crystals gate the best items, so
+the story stays the real prize.
+
+**The daily layer is deliberately gentle.** `PuzzleDailyEngine` owns the
+seeded daily puzzle, the day-seeded mystery chest (relaunching can't reroll
+it), the seven-day streak ladder, and the weekend challenge. A missed day
+costs the streak *multiplier*, never anything already owned, and there are no
+countdown timers. Daily and weekend runs carry `PuzzleRunMode` values whose
+`advancesStory` is false and whose level is 0, so they pay gems and practise
+skills without ever skipping a chapter.
+
+Persistence stays small: `PuzzleProgress` (per child × world: level, rung,
+stars, crystal, and a 5-run accuracy history — attempts are never stored),
+`PuzzleSkillStat` (per child × skill), plus gems, pieces, badges,
+collectibles, and the aggregate speed/hint signals on `ChildProfile`.
+Day-scoped flags (today's puzzle done, chest opened) live in `UserDefaults`
+via `DailyPuzzleLog`, not in the synced store — a chest opened on the iPad
+shouldn't vanish when the iPhone syncs.
+
+**Parent reporting** is in cognitive terms, not engine terms:
+`PuzzleSkill.cognitiveSkills` maps rungs onto the seven `CognitiveSkill`
+rows, and concentration and processing speed come from *how* the child plays
+(hint rate, time against the limit). A row with fewer than five samples shows
+"not enough play yet" rather than a made-up rating.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).

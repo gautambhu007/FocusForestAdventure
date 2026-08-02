@@ -16,7 +16,9 @@ final class UseCaseTests: XCTestCase {
     var deps: AppDependencies!
 
     override func setUp() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        // `.none`: an in-memory store still attempts CloudKit mirroring
+        // otherwise, which floods the test log with setup failures.
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         container = try ModelContainer(for: ModelContainerFactory.schema, configurations: [config])
         deps = AppDependencies(modelContainer: container)
     }

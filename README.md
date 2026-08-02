@@ -8,7 +8,8 @@ Every completed mission grows the child's own magic forest.
 
 - **7 adventures** — ABC, Numbers, Shapes, Colors, Memory, Listening, Animals — each with multiple mini-game types
 - **AI personalization** — on-device `LearningRecommendationEngine` + `AdaptiveDifficultyEngine` tune difficulty one gentle step at a time (never jumps), surface subjects that need practice, and cap missions at 3–5 minutes with a *frustration guard* that ends early on a high note
-- **Puzzle Quest** — 6 themed worlds and 18 generated puzzle types (patterns, odd-one-out, mirror symmetry, rotation, Raven-style matrices, visual sudoku, rule discovery) on an 8-rung *cognitive* ladder for ages 4–8, with stars, coins, and badges
+- **Puzzle Adventure World** — a story campaign for ages 4–8: the Shadow Wizard has stolen Brainland's Crystal of Wisdom, and every puzzle helps win it back. 9 worlds, 85 named chapters, 26 characters, boss levels that award the seven crystals, and 23 generated puzzle mechanics on an 8-rung *cognitive* ladder
+- **Collect and come back** — 💎 gems buy 46 cosmetic collectibles (friends, hats, rides, places, stickers) and 🧩 pieces uncover a nine-tile mural for each world; a daily puzzle, mystery chest, 7-day streak ladder, and double-gem weekend challenge bring children back without a single countdown timer
 - **Living forest** — 8 evolving levels from empty meadow to magic forest, with 10 unlockable animated elements (butterflies → river → rainbow → castle → dragon)
 - **Movement breaks** — a 30-second wiggle break with Bunny after every mission
 - **Friendly Bunny voice** — `AVSpeechSynthesizer` guide; every phrase is positive
