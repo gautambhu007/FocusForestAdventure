@@ -25,7 +25,7 @@ struct RewardCelebrationView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.sunset.ignoresSafeArea()
+            ForestSceneBackground(place: .magicGrove, legibility: 0.14)
             ConfettiView(particleCount: 80).ignoresSafeArea()
 
             // Scrollable: with unlocks + achievements the celebration can be
@@ -59,6 +59,11 @@ struct RewardCelebrationView: View {
 
                     rewardRow
 
+                    // The headline reward: what you earned for the forest,
+                    // and the visit it just bought you.
+                    if revealUnlocks && !bundle.newTreasures.isEmpty {
+                        treasuresSection
+                    }
                     if revealUnlocks && !bundle.newlyUnlocked.isEmpty {
                         unlocksSection
                     }
@@ -136,6 +141,49 @@ struct RewardCelebrationView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "\(count) \(label) earned"))
+    }
+
+    /// What the child earned for their forest — and the fact that it has
+    /// just unlocked a four-minute visit.
+    private var treasuresSection: some View {
+        VStack(spacing: 10) {
+            Text(String(localized: "You earned something!"))
+                .font(ForestTheme.Fonts.heading)
+                .foregroundStyle(ForestTheme.Colors.deepGreen)
+
+            ForEach(bundle.newTreasures) { treasure in
+                HStack(spacing: 14) {
+                    Text(treasure.emoji)
+                        .font(.system(size: 44))
+                        .floating()
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(treasure.name)
+                            .font(ForestTheme.Fonts.body)
+                            .foregroundStyle(ForestTheme.Colors.deepGreen)
+                        Text(treasure.blurb)
+                            .font(ForestTheme.Fonts.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+            }
+
+            Label(
+                bundle.newTreasures.count == 1
+                    ? String(localized: "The Magic Forest is open — 4 minutes!")
+                    : String(localized: "\(bundle.newTreasures.count) visits to the Magic Forest!"),
+                systemImage: "sparkles"
+            )
+            .font(.footnote.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(Capsule().fill(ForestTheme.Colors.leafGreen))
+        }
+        .padding(16)
+        .forestCard()
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
     }
 
     private var unlocksSection: some View {
@@ -233,7 +281,7 @@ struct MovementBreakView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.meadow.ignoresSafeArea()
+            ForestSceneBackground(place: .glade, legibility: 0.18)
 
             VStack(spacing: 20) {
                 Spacer()

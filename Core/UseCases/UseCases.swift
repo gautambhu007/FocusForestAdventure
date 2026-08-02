@@ -24,7 +24,8 @@ struct StartMissionUseCase {
         preference: DifficultyPreference,
         duration: TimeInterval,
         age: Int = 4,
-        additionSection: AdditionSection? = nil
+        additionSection: AdditionSection? = nil,
+        forcedMissionType: MissionType? = nil
     ) throws -> MissionPlan {
         let history = try missionRepository
             .missions(for: child, since: nil)
@@ -48,7 +49,8 @@ struct StartMissionUseCase {
             duration: duration,
             age: age,
             usedWords: Set(child.usedWordsRaw),
-            additionSection: additionSection
+            additionSection: additionSection,
+            forcedType: forcedMissionType
         )
     }
 }
@@ -72,6 +74,7 @@ struct CompleteMissionUseCase {
     let growthEngine: ForestGrowthEngine
     let achievementEngine: AchievementEngine
     let difficultyEngine: AdaptiveDifficultyEngine
+    let treasureEngine: TreasureEngine
 
     func execute(
         plan: MissionPlan,
@@ -123,6 +126,17 @@ struct CompleteMissionUseCase {
         // 3. Grow the forest.
         let forest = try forestRepository.forest(for: child)
         rewards.newlyUnlocked = growthEngine.apply(rewards, to: forest)
+
+        // 3a. Earn treasures — and with them, the right to visit the
+        // Magic Forest. One earned thing buys one four-minute visit.
+        let treasures = treasureEngine.award(
+            alreadyEarned: forest.earnedTreasureIDs,
+            accuracy: outcome.accuracy,
+            questionsAnswered: correct + wrong
+        )
+        forest.earnedTreasureIDsRaw += treasures.map(\.id)
+        forest.forestPasses += treasureEngine.passesEarned(for: treasures)
+        rewards.newTreasures = treasures
 
         // 4. Update today's goal + attention stats.
         let goal = try statisticsRepository.todayGoal(for: child)

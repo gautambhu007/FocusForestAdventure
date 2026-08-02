@@ -107,7 +107,7 @@ struct AdventureSelectView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.magic.ignoresSafeArea()
+            ForestSceneBackground(place: .glade, legibility: 0.22)
             MagicDustView().ignoresSafeArea()
 
             ScrollView {
@@ -188,7 +188,7 @@ struct AdventureSelectView: View {
     /// Age 6: pick one of the four graded addition sections.
     private var additionSectionSheet: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .meadow, legibility: 0.2)
             VStack(spacing: 14) {
                 Text(String(localized: "Pick your challenge!"))
                     .font(ForestTheme.Fonts.heading)

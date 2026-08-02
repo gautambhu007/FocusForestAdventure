@@ -65,7 +65,7 @@ struct RootView: View {
 
     private var restOverlay: some View {
         ZStack {
-            ForestTheme.Gradients.magic.ignoresSafeArea()
+            ForestSceneBackground(place: .night, legibility: 0.22)
             VStack(spacing: 18) {
                 Text("😴🐰")
                     .font(.system(size: 80))
@@ -123,6 +123,12 @@ struct RootView: View {
             if let module = HindiLearningCatalog.module(id: moduleID) {
                 HindiModuleView(module: module, dependencies: dependencies)
             }
+        case .listeningHub:
+            ListeningHubView(viewModel: ListeningHubViewModel(dependencies: dependencies))
+        case .listeningMyWords:
+            MyWordsView(viewModel: MyWordsViewModel(dependencies: dependencies))
+        case .wordExplorer:
+            WordExplorerView(viewModel: WordExplorerViewModel(dependencies: dependencies))
         case .barakhadi:
             BarakhadiView(dependencies: dependencies)
         case .multiplicationTables:
@@ -157,7 +163,7 @@ struct SplashView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .magicGrove, legibility: 0.14)
 
             VStack(spacing: 24) {
                 LottieView(animation: .bunnyWave, loopMode: .loop)

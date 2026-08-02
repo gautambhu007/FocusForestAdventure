@@ -65,6 +65,137 @@ enum ForestTextures {
         }
     }
 
+    /// The ground the child actually walks on: grass, but thickly strewn
+    /// with fallen leaves and twigs so no patch of floor is ever bare.
+    static var forestFloor: UIImage {
+        make("forestfloor") { c, s, rng in
+            // Damp earth showing through the leaf litter.
+            c.setFillColor(UIColor(red: 0.30, green: 0.44, blue: 0.26, alpha: 1).cgColor)
+            c.fill(CGRect(x: 0, y: 0, width: s, height: s))
+            for _ in 0..<70 {
+                let g = rng.range(0.40, 0.62)
+                c.setFillColor(UIColor(red: g * 0.62, green: g, blue: g * 0.48, alpha: 0.35).cgColor)
+                let r = rng.range(10, 34)
+                c.fillEllipse(in: CGRect(x: rng.range(-20, Double(s)), y: rng.range(-20, Double(s)),
+                                         width: r, height: r * 0.7))
+            }
+            // Grass blades poking between the leaves.
+            c.setLineCap(.round)
+            for _ in 0..<260 {
+                let x = rng.range(0, Double(s)); let y = rng.range(0, Double(s))
+                let g = rng.range(0.48, 0.78)
+                c.setStrokeColor(UIColor(red: g * 0.45, green: g, blue: g * 0.42, alpha: 0.6).cgColor)
+                c.setLineWidth(CGFloat(rng.range(0.8, 1.5)))
+                c.move(to: CGPoint(x: x, y: y))
+                c.addLine(to: CGPoint(x: x + rng.range(-2, 2), y: y - rng.range(3, 7)))
+                c.strokePath()
+            }
+            // The leaf carpet itself — hundreds of little painted leaves,
+            // spread evenly so the whole tile reads as covered ground.
+            for _ in 0..<420 {
+                let x = rng.range(-8, Double(s) + 8)
+                let y = rng.range(-8, Double(s) + 8)
+                let len = rng.range(7, 18)
+                let wide = len * rng.range(0.42, 0.66)
+                let angle = rng.range(0, .pi * 2)
+                // Autumn range: gold → amber → rust → deep brown, with a
+                // few green ones freshly down from the canopy.
+                let pick = rng.next()
+                let color: UIColor
+                switch pick {
+                case ..<0.26: color = UIColor(red: rng.range(0.80, 0.92), green: rng.range(0.60, 0.72),
+                                              blue: rng.range(0.18, 0.30), alpha: 1)   // gold
+                case ..<0.50: color = UIColor(red: rng.range(0.74, 0.88), green: rng.range(0.42, 0.55),
+                                              blue: rng.range(0.16, 0.24), alpha: 1)   // amber
+                case ..<0.72: color = UIColor(red: rng.range(0.58, 0.72), green: rng.range(0.28, 0.38),
+                                              blue: rng.range(0.14, 0.20), alpha: 1)   // rust
+                case ..<0.88: color = UIColor(red: rng.range(0.38, 0.50), green: rng.range(0.26, 0.34),
+                                              blue: rng.range(0.15, 0.21), alpha: 1)   // brown
+                default:      color = UIColor(red: rng.range(0.30, 0.44), green: rng.range(0.52, 0.66),
+                                              blue: rng.range(0.22, 0.30), alpha: 1)   // fresh green
+                }
+                c.saveGState()
+                c.translateBy(x: x, y: y)
+                c.rotate(by: angle)
+                c.setFillColor(color.withAlphaComponent(rng.range(0.75, 1.0)).cgColor)
+                // Pointed oval leaf.
+                let path = CGMutablePath()
+                path.move(to: CGPoint(x: -len / 2, y: 0))
+                path.addQuadCurve(to: CGPoint(x: len / 2, y: 0),
+                                  control: CGPoint(x: 0, y: wide))
+                path.addQuadCurve(to: CGPoint(x: -len / 2, y: 0),
+                                  control: CGPoint(x: 0, y: -wide))
+                c.addPath(path)
+                c.fillPath()
+                // Midrib
+                c.setStrokeColor(UIColor(white: 0, alpha: 0.18).cgColor)
+                c.setLineWidth(0.7)
+                c.move(to: CGPoint(x: -len / 2, y: 0))
+                c.addLine(to: CGPoint(x: len / 2, y: 0))
+                c.strokePath()
+                c.restoreGState()
+            }
+            // A scatter of twigs and seeds for texture.
+            for _ in 0..<40 {
+                c.setStrokeColor(UIColor(red: 0.36, green: 0.27, blue: 0.18,
+                                         alpha: rng.range(0.4, 0.8)).cgColor)
+                c.setLineWidth(CGFloat(rng.range(0.9, 2.0)))
+                let x = rng.range(0, Double(s)), y = rng.range(0, Double(s))
+                c.move(to: CGPoint(x: x, y: y))
+                c.addLine(to: CGPoint(x: x + rng.range(-16, 16), y: y + rng.range(-16, 16)))
+                c.strokePath()
+            }
+        }
+    }
+
+    /// A 2×2 atlas of loose leaves on a transparent background. The litter
+    /// mesh picks one cell per leaf, so thousands of leaves cost a single
+    /// material and a single draw call.
+    static var leafAtlas: UIImage {
+        make("leafatlas", size: 256) { c, s, rng in
+            let cell = s / 2
+            let colors: [UIColor] = [
+                UIColor(red: 0.88, green: 0.66, blue: 0.24, alpha: 1),   // gold
+                UIColor(red: 0.80, green: 0.46, blue: 0.18, alpha: 1),   // amber
+                UIColor(red: 0.63, green: 0.31, blue: 0.16, alpha: 1),   // rust
+                UIColor(red: 0.40, green: 0.57, blue: 0.26, alpha: 1)    // fresh green
+            ]
+            for i in 0..<4 {
+                let ox = CGFloat(i % 2) * cell
+                let oy = CGFloat(i / 2) * cell
+                let cx = ox + cell / 2, cy = oy + cell / 2
+                let len = cell * 0.82, wide = cell * 0.30
+                c.saveGState()
+                c.translateBy(x: cx, y: cy)
+                c.rotate(by: CGFloat(rng.range(-0.4, 0.4)))
+                c.setFillColor(colors[i].cgColor)
+                let path = CGMutablePath()
+                path.move(to: CGPoint(x: -len / 2, y: 0))
+                path.addQuadCurve(to: CGPoint(x: len / 2, y: 0), control: CGPoint(x: 0, y: wide))
+                path.addQuadCurve(to: CGPoint(x: -len / 2, y: 0), control: CGPoint(x: 0, y: -wide))
+                c.addPath(path)
+                c.fillPath()
+                // Veins
+                c.setStrokeColor(UIColor(white: 0, alpha: 0.22).cgColor)
+                c.setLineWidth(1.6)
+                c.move(to: CGPoint(x: -len / 2, y: 0))
+                c.addLine(to: CGPoint(x: len / 2, y: 0))
+                c.strokePath()
+                c.setLineWidth(1.0)
+                for v in 1...4 {
+                    let vx = -len / 2 + len * CGFloat(v) / 5.5
+                    let reach = wide * (1 - CGFloat(v) / 6)
+                    c.move(to: CGPoint(x: vx, y: 0))
+                    c.addLine(to: CGPoint(x: vx + len * 0.10, y: reach))
+                    c.move(to: CGPoint(x: vx, y: 0))
+                    c.addLine(to: CGPoint(x: vx + len * 0.10, y: -reach))
+                }
+                c.strokePath()
+                c.restoreGState()
+            }
+        }
+    }
+
     static var dirtPath: UIImage {
         make("dirt") { c, s, rng in
             c.setFillColor(UIColor(red: 0.58, green: 0.45, blue: 0.31, alpha: 1).cgColor)

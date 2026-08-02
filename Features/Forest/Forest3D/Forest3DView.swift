@@ -32,8 +32,11 @@ final class Forest3DControls: @unchecked Sendable {
 
 struct Forest3DExperience: View {
     let unlocked: [ForestElement]
+    /// Everything the child has earned, placed into the world.
+    var treasures: [ForestTreasure] = []
     var speak: (String) -> Void = { _ in }
-    var onExit: () -> Void
+    /// `true` when the four minutes ran out rather than the child leaving.
+    var onExit: (Bool) -> Void
 
     @Environment(\.colorScheme) private var scheme
     @State private var controls = Forest3DControls()
@@ -43,14 +46,18 @@ struct Forest3DExperience: View {
     @State private var pouch = 0
     @State private var netOn = false
     @State private var learnItem: ForestLearnItem?
+    /// Seconds left in this visit.
+    @State private var timeLeft = MagicForestRules.visitDuration
+    @State private var timeIsUp = false
 
     var body: some View {
         ZStack {
             Forest3DViewRepresentable(
                 unlocked: unlocked,
+                treasures: treasures,
                 night: scheme == .dark,
                 controls: controls,
-                onExit: onExit,
+                onExit: { onExit(false) },
                 onModeChange: { name in
                     insideName = name
                     switch name {
@@ -79,11 +86,14 @@ struct Forest3DExperience: View {
 
             VStack {
                 HStack(alignment: .top) {
-                    hintPill
+                    VStack(alignment: .leading, spacing: 8) {
+                        visitTimerPill
+                        hintPill
+                    }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 8) {
                         Button {
-                            onExit()
+                            onExit(false)
                         } label: {
                             Label(String(localized: "Leave"), systemImage: "arrowshape.turn.up.backward.fill")
                                 .font(ForestTheme.Fonts.caption)
@@ -118,19 +128,84 @@ struct Forest3DExperience: View {
                 .padding(.bottom, 26)
             }
         }
+        .overlay {
+            if timeIsUp { timeUpOverlay }
+        }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: learnItem?.name)
         .animation(.easeInOut(duration: 0.2), value: netOn)
+        .animation(.easeInOut(duration: 0.4), value: timeIsUp)
         .task(id: learnItem?.name) {
             // Learn cards politely excuse themselves.
             guard learnItem != nil else { return }
             try? await Task.sleep(nanoseconds: 9_000_000_000)
             learnItem = nil
         }
+        // The visit clock. Four minutes of exploring, a gentle warning
+        // near the end, then a celebratory goodbye — never a hard cut.
+        .task {
+            let start = Date()
+            var warned = false
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                let remaining = MagicForestRules.visitDuration
+                    + start.timeIntervalSinceNow          // negative elapsed
+                timeLeft = max(0, remaining)
+                if !warned, remaining <= MagicForestRules.warningTime {
+                    warned = true
+                    speak(String(localized: "Almost time to go! Have one more look around."))
+                }
+                if remaining <= 0 {
+                    timeIsUp = true
+                    speak(String(localized: "Time's up! Let's go earn another visit."))
+                    try? await Task.sleep(for: .seconds(3))
+                    onExit(true)
+                    return
+                }
+            }
+        }
         .onAppear {
             starCount = UserDefaults.standard.array(forKey: "f3d.stars.collected")?.count ?? 0
             ambience.start(mood: .meadow)
         }
         .onDisappear { ambience.stop() }
+    }
+
+    // MARK: Visit clock
+
+    private var visitTimerPill: some View {
+        let seconds = Int(timeLeft.rounded())
+        let low = timeLeft <= MagicForestRules.warningTime
+        return Label(
+            String(format: "%d:%02d", seconds / 60, seconds % 60),
+            systemImage: "hourglass"
+        )
+        .font(.system(.footnote, design: .rounded).weight(.bold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(low ? Color.orange.opacity(0.85) : Color.black.opacity(0.35),
+                    in: Capsule())
+        .accessibilityLabel(String(localized: "\(seconds / 60) minutes \(seconds % 60) seconds left in the forest"))
+    }
+
+    private var timeUpOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(spacing: 14) {
+                Text("🌟🐰")
+                    .font(.system(size: 64))
+                    .floating(amplitude: 6, period: 2.0)
+                Text(String(localized: "Four minutes of magic!"))
+                    .font(ForestTheme.Fonts.title)
+                    .foregroundStyle(.white)
+                Text(String(localized: "Answer more questions to earn your next visit."))
+                    .font(ForestTheme.Fonts.body)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+        }
+        .transition(.opacity)
+        .accessibilityElement(children: .combine)
     }
 
     private var hintPill: some View {
@@ -245,6 +320,7 @@ struct JoystickPad: View {
 
 struct Forest3DViewRepresentable: UIViewRepresentable {
     let unlocked: [ForestElement]
+    var treasures: [ForestTreasure] = []
     let night: Bool
     let controls: Forest3DControls
     let onExit: () -> Void
@@ -254,7 +330,7 @@ struct Forest3DViewRepresentable: UIViewRepresentable {
     let onPouch: (Int, Bool) -> Void
 
     func makeCoordinator() -> Forest3DCoordinator {
-        Forest3DCoordinator(unlocked: unlocked, night: night,
+        Forest3DCoordinator(unlocked: unlocked, treasures: treasures, night: night,
                             controls: controls, onExit: onExit,
                             onModeChange: onModeChange, onLearn: onLearn,
                             onStars: onStars, onPouch: onPouch)
@@ -282,6 +358,7 @@ struct Forest3DViewRepresentable: UIViewRepresentable {
 final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
 
     private let unlocked: [ForestElement]
+    private let treasures: [ForestTreasure]
     private let night: Bool
     private let controls: Forest3DControls
     private let onExit: () -> Void
@@ -313,12 +390,14 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
     nonisolated(unsafe) private var lastTime: TimeInterval = 0
     nonisolated(unsafe) private var transitioning = false
 
-    init(unlocked: [ForestElement], night: Bool, controls: Forest3DControls,
+    init(unlocked: [ForestElement], treasures: [ForestTreasure], night: Bool,
+         controls: Forest3DControls,
          onExit: @escaping () -> Void, onModeChange: @escaping (String?) -> Void,
          onLearn: @escaping (ForestLearnItem) -> Void,
          onStars: @escaping (Int) -> Void,
          onPouch: @escaping (Int, Bool) -> Void) {
         self.unlocked = unlocked
+        self.treasures = treasures
         self.night = night
         self.controls = controls
         self.onExit = onExit
@@ -333,7 +412,9 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
 
     func attach(to view: SCNView) {
         scnView = view
-        let built = Forest3DBuilder.buildOutdoor(unlocked: unlocked, night: night)
+        let built = Forest3DBuilder.buildOutdoor(unlocked: unlocked,
+                                                 treasures: treasures,
+                                                 night: night)
         world = built
         // Stars found on previous visits stay found.
         let collected = Set((UserDefaults.standard.array(forKey: "f3d.stars.collected") as? [Int]) ?? [])
@@ -475,6 +556,16 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
                 onLearn(item)
                 return true
             }
+            // Earned treasures introduce themselves when tapped.
+            for prefix in ["treasure.", "critter."] where name.hasPrefix(prefix) {
+                let id = String(name.dropFirst(prefix.count))
+                if let treasure = TreasureCatalog.treasure(id) {
+                    onLearn(ForestLearnItem(emoji: treasure.emoji,
+                                            name: treasure.name,
+                                            fact: treasure.blurb))
+                    return true
+                }
+            }
             return false
         }
     }
@@ -516,7 +607,7 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
         savedOutdoorPosition = yawNode.position
         savedOutdoorYaw = yaw
         interior = kind
-        let room = Forest3DBuilder.buildInterior(kind, night: night)
+        let room = Forest3DBuilder.buildInterior(kind, treasures: treasures, night: night)
         installRig(in: room, position: SCNVector3(0, 1.75, 3.8), yaw: .pi)
         view.present(room, with: SKTransition.crossFade(withDuration: 0.7),
                      incomingPointOfView: cameraNode)
@@ -634,6 +725,15 @@ final class Forest3DCoordinator: NSObject, SCNSceneRendererDelegate {
             let z = cz + sinf(a) * r
             fox.position = SCNVector3(x, heightAt(x: x, z: z), z)
             fox.eulerAngles.y = -a           // face the direction of travel
+        }
+        // Earned animals wander their own patch of forest, each on its
+        // own slow orbit so the world always has something moving in it.
+        for (i, critter) in world.critters.enumerated() {
+            let a = Float(t * 0.22) + Float(i) * 1.3
+            let x = critter.home.x + cosf(a) * critter.radius
+            let z = critter.home.z + sinf(a) * critter.radius
+            critter.node.position = SCNVector3(x, heightAt(x: x, z: z), z)
+            critter.node.eulerAngles.y = -a + .pi / 2
         }
         // Rabbits hop in little loops that FOLLOW the terrain
         let rabbitHomes: [(Float, Float, Float)] = [(6, 52, 6), (-10, 46, 7), (20, 58, 5), (0, 66, 8)]

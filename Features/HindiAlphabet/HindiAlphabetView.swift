@@ -23,7 +23,7 @@ struct HindiAlphabetView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .blossom, legibility: 0.22)
 
             ScrollView {
                 VStack(spacing: 16) {

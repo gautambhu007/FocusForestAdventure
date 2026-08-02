@@ -39,6 +39,9 @@ final class ChildProfile {
     @Relationship(deleteRule: .cascade, inverse: \StoryRecord.child)
     var stories: [StoryRecord]? = []
 
+    @Relationship(deleteRule: .cascade, inverse: \CustomWord.child)
+    var customWords: [CustomWord]? = []
+
     init(name: String, avatarEmoji: String = "🐰", birthYear: Int = 2021) {
         self.name = name
         self.avatarEmoji = avatarEmoji
@@ -92,11 +95,22 @@ final class ForestState {
     var magicDust: Int = 0
     var stars: Int = 0
     var unlockedElementsRaw: [String] = []  // ForestElement raw values
+    /// Treasures earned by answering questions (TreasureCatalog IDs).
+    var earnedTreasureIDsRaw: [String] = []
+    /// Unspent visits to the Magic Forest. Earning a treasure adds one;
+    /// stepping into the 3D forest spends one. No pass, no entry.
+    var forestPasses: Int = 0
     var child: ChildProfile?
 
     var unlockedElements: [ForestElement] {
         get { unlockedElementsRaw.compactMap(ForestElement.init(rawValue:)) }
         set { unlockedElementsRaw = newValue.map(\.rawValue) }
+    }
+
+    var earnedTreasureIDs: Set<String> { Set(earnedTreasureIDsRaw) }
+
+    var earnedTreasures: [ForestTreasure] {
+        earnedTreasureIDsRaw.compactMap(TreasureCatalog.treasure)
     }
 
     init() {}
@@ -273,6 +287,19 @@ final class AchievementRecord {
 
     init(achievementID: AchievementID) {
         self.achievementIDRaw = achievementID.rawValue
+    }
+}
+
+// MARK: - Custom word (Listening Corner · My Words)
+
+@Model
+final class CustomWord {
+    var text: String = ""
+    var createdAt: Date = Date()
+    var child: ChildProfile?
+
+    init(text: String) {
+        self.text = text
     }
 }
 

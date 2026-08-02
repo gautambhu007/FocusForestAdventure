@@ -57,7 +57,7 @@ struct LearningRewardsView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.sunset.ignoresSafeArea()
+            ForestSceneBackground(place: .dusk, legibility: 0.2)
             MagicDustView().ignoresSafeArea()
 
             ScrollView {
@@ -162,7 +162,7 @@ struct HindiLearningHomeView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .blossom, legibility: 0.22)
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -290,7 +290,7 @@ struct HindiModuleView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.meadow.ignoresSafeArea()
+            ForestSceneBackground(place: .meadow, legibility: 0.2)
 
             if isQuizzing {
                 LearningQuizView(module: module, dependencies: dependencies) {
@@ -390,11 +390,15 @@ struct HindiModuleView: View {
     }
 
     private func speakPrimary(_ text: String) {
+        // A single uppercase letter (English alphabet module) gets read as
+        // "capital A" by AVSpeechSynthesizer; lowercasing it for speech only
+        // (display is untouched) makes it say just the letter.
+        let spoken = text.count == 1 ? text.lowercased() : text
         Task {
             if let language = module.language {
-                await dependencies.speechService.speak(text, language: language)
+                await dependencies.speechService.speak(spoken, language: language)
             } else {
-                await dependencies.speechService.speak(text)
+                await dependencies.speechService.speak(spoken)
             }
         }
     }

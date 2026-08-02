@@ -17,6 +17,10 @@ import SwiftUI
 struct ImmersiveForestScene: View {
     let unlocked: [ForestElement]
     @Binding var isImmersed: Bool
+    /// The Magic Forest opens only once something new has been earned.
+    var canImmerse: Bool = true
+    /// Called instead of zooming in when the child has no visit to spend.
+    var onBlocked: () -> Void = {}
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -64,6 +68,10 @@ struct ImmersiveForestScene: View {
                     .onEnded { _ in dragStart = nil }
             )
             .onTapGesture(count: 2) {
+                guard isImmersed || canImmerse else {
+                    onBlocked()
+                    return
+                }
                 withAnimation(.spring(response: 0.65, dampingFraction: 0.8)) {
                     isImmersed.toggle()
                     if !isImmersed { panYFraction = 0.5 }

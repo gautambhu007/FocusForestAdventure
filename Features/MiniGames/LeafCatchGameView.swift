@@ -155,7 +155,7 @@ struct LeafCatchGameView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ForestTheme.Gradients.meadow.ignoresSafeArea()
+                ForestSceneBackground(place: .dusk, legibility: 0.1)
 
                 ForEach(viewModel.leaves) { leaf in
                     Button {

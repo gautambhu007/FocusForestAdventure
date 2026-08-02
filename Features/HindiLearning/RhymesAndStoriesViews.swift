@@ -19,7 +19,7 @@ struct RhymesView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.magic.ignoresSafeArea()
+            ForestSceneBackground(place: .magicGrove, legibility: 0.2)
 
             if let rhyme = selected {
                 player(rhyme)
@@ -150,7 +150,7 @@ struct MoralStoriesView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.sunset.ignoresSafeArea()
+            ForestSceneBackground(place: .dusk, legibility: 0.2)
 
             if let story = selected {
                 reader(story)

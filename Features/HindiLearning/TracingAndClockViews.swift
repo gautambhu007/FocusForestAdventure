@@ -28,7 +28,7 @@ struct ClockGameView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.meadow.ignoresSafeArea()
+            ForestSceneBackground(place: .glade, legibility: 0.24)
 
             VStack(spacing: 18) {
                 if isDone {

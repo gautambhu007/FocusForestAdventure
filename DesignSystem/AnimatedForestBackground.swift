@@ -16,22 +16,17 @@ struct AnimatedForestBackground: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            // A real painted clearing rather than a gradient. Density
+            // chooses how deep into the trees the screen stands.
+            ForestSceneBackground(place: place, legibility: 0.12)
 
-            // Drifting clouds
             CloudLayer()
 
-            // Swaying trees along the bottom
-            TreeLine(treeCount: treeCount)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-
-            // Birds
             if density != .light {
                 FlyingBird(delay: 0).allowsHitTesting(false)
                 FlyingBird(delay: 6).allowsHitTesting(false)
             }
 
-            // Butterflies
             ForEach(0..<butterflyCount, id: \.self) { index in
                 ButterflySprite(seed: index)
             }
@@ -41,44 +36,16 @@ struct AnimatedForestBackground: View {
         .accessibilityHidden(true) // decorative
     }
 
-    private var treeCount: Int {
-        switch density { case .light: 3; case .medium: 5; case .lush: 8 }
+    private var place: ForestPlace {
+        switch density {
+        case .light: .meadow
+        case .medium: .glade
+        case .lush: .deepWoods
+        }
     }
 
     private var butterflyCount: Int {
         switch density { case .light: 1; case .medium: 2; case .lush: 4 }
-    }
-}
-
-// MARK: - Trees
-
-private struct TreeLine: View {
-    let treeCount: Int
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sway = false
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: -12) {
-            ForEach(0..<treeCount, id: \.self) { index in
-                Image(systemName: "tree.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(height: CGFloat(80 + (index * 37) % 70))
-                    .foregroundStyle(
-                        ForestTheme.Colors.deepGreen
-                            .opacity(0.35 + Double(index % 3) * 0.2)
-                    )
-                    .rotationEffect(.degrees(reduceMotion ? 0 : (sway ? 1.5 : -1.5)),
-                                    anchor: .bottom)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
-                sway = true
-            }
-        }
     }
 }
 

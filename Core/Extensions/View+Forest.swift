@@ -16,13 +16,18 @@ extension View {
 
     /// Rounded glass card treatment used for all cards in the app.
     func forestCard(cornerRadius: CGFloat = 28) -> some View {
-        self
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
+            // Two layers: a solid tint to guarantee contrast against the
+            // painted forest behind, then the material for depth. Thin
+            // material alone let tree trunks and leaves show through
+            // enough to muddy small text.
+            .background(ForestTheme.Colors.cloudWhite.opacity(0.72), in: shape)
+            .background(.regularMaterial, in: shape)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(ForestTheme.Colors.cardStroke.opacity(0.55), lineWidth: 1.5)
+                shape.strokeBorder(ForestTheme.Colors.cardStroke.opacity(0.65), lineWidth: 1.5)
             )
-            .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+            .shadow(color: .black.opacity(0.16), radius: 14, y: 6)
     }
 
     /// Gentle floating (used for butterflies, clouds, chest). Respects Reduce Motion.

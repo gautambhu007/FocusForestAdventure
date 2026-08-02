@@ -17,7 +17,7 @@ struct TablesView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.meadow.ignoresSafeArea()
+            ForestSceneBackground(place: .meadow, legibility: 0.22)
 
             if isQuizzing {
                 TableQuizView(table: table, dependencies: dependencies) {

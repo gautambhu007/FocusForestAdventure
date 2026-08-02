@@ -226,4 +226,16 @@ final class MissionGeneratorEngineTests: XCTestCase {
         XCTAssertEqual(mission.frustrationMissLimit, 3)
         XCTAssertGreaterThan(mission.maxDuration, 0)
     }
+
+    /// Listening Corner tiles (Animal Sounds / Repeat the Pattern) force a
+    /// specific type instead of the adventure's semi-random default.
+    func testForcedTypeAlwaysWinsOverDefaultSelection() {
+        for _ in 0..<20 {
+            let mission = generator.generateMission(
+                adventure: .listening, difficulty: Int.random(in: 1...5),
+                forcedType: .repeatPattern
+            )
+            XCTAssertEqual(mission.missionType, .repeatPattern)
+        }
+    }
 }

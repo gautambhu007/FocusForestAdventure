@@ -18,7 +18,12 @@ final class HomeViewModel {
     private(set) var stars: Int = 0
     private(set) var forestLevelName: String = ""
     private(set) var bunnyGreeting: String = BunnyPhrase.welcome.text
+    /// Unspent visits to the Magic Forest — the child's headline goal.
+    private(set) var forestPasses: Int = 0
+    private(set) var nextTreasure: ForestTreasure?
     var isLoading = true
+
+    var canEnterMagicForest: Bool { MagicForestRules.canEnter(passes: forestPasses) }
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -32,6 +37,8 @@ final class HomeViewModel {
             self.forest = forest
             self.stars = forest.stars
             self.forestLevelName = dependencies.forestGrowthEngine.localizedLevelName(forest.level)
+            self.forestPasses = forest.forestPasses
+            self.nextTreasure = TreasureCatalog.next(after: forest.earnedTreasureIDs)
 
             let goal = try dependencies.statisticsRepository.todayGoal(for: child)
             self.goalProgress = goal.progress
@@ -79,6 +86,12 @@ final class HomeViewModel {
         dependencies.hapticsService.playGentleTap()
         dependencies.soundEngine.play(.tapPop)
         dependencies.appState.navigationPath.append(.hindiLearning)
+    }
+
+    func listeningCornerTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        dependencies.appState.navigationPath.append(.listeningHub)
     }
 
     func magicChestTapped() {

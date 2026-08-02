@@ -117,7 +117,7 @@ struct ARForestView: View {
 
     private var unsupportedFallback: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .deepWoods, legibility: 0.18)
             VStack(spacing: 16) {
                 LottieView(animation: .treeGrow, loopMode: .loop)
                     .frame(width: 160, height: 160)

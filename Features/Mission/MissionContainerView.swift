@@ -55,8 +55,10 @@ struct MissionContainerView: View {
 
     private var playingView: some View {
         ZStack {
-            viewModel.plan.adventure.tint.opacity(0.25).ignoresSafeArea()
-            ForestTheme.Gradients.morningSky.opacity(0.5).ignoresSafeArea()
+            // A quiet clearing to work in: the forest is there, but the
+            // veil is heavy so the question always reads first.
+            ForestSceneBackground(place: .glade, legibility: 0.42)
+            viewModel.plan.adventure.tint.opacity(0.14).ignoresSafeArea()
 
             VStack(spacing: 16) {
                 HStack(spacing: 12) {

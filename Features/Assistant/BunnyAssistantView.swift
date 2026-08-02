@@ -14,7 +14,7 @@ struct BunnyAssistantView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .glade, legibility: 0.2)
 
             VStack(spacing: 0) {
                 bunnyHeader

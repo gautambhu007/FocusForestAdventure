@@ -12,8 +12,10 @@ import Foundation
 struct MissionGeneratorEngine: Sendable {
 
     /// Questions per mission. The frustration guard (time cap + consecutive-miss
-    /// limit) still ends a mission gracefully if the child tires before finishing.
-    static let questionsPerMission = 20
+    /// limit) still ends a mission gracefully if the child tires before finishing,
+    /// so a longer set never means a longer sit — it means more to do for the
+    /// children who are in the flow and want to keep going.
+    static let questionsPerMission = 30
 
     /// Time allowance per question used to size the mission's duration cap.
     static let secondsPerQuestion: TimeInterval = 20
@@ -29,14 +31,16 @@ struct MissionGeneratorEngine: Sendable {
     /// `age` switches content style (5+ turns ABC into word reading);
     /// `usedWords` keeps word targets from ever repeating;
     /// `additionSection` (age 6 Numbers) picks one of the four graded
-    /// addition sub-sections.
+    /// addition sub-sections; `forcedType` (Listening Corner tiles) picks a
+    /// specific mission type instead of the adventure's semi-random default.
     func generateMission(
         adventure: AdventureKind,
         difficulty: Int,
         duration: TimeInterval = 240,
         age: Int = 4,
         usedWords: Set<String> = [],
-        additionSection: AdditionSection? = nil
+        additionSection: AdditionSection? = nil,
+        forcedType: MissionType? = nil
     ) -> MissionPlan {
         let level = difficulty.clamped(to: 1...5)
         let questionCount = Self.questionsPerMission
@@ -44,7 +48,9 @@ struct MissionGeneratorEngine: Sendable {
         // Age 5+: the ABC adventure becomes word reading.
         // Age 6 Numbers with a chosen section: graded addition practice.
         let type: MissionType
-        if adventure == .alphabet && age >= 5 {
+        if let forcedType {
+            type = forcedType
+        } else if adventure == .alphabet && age >= 5 {
             type = .findWord
         } else if adventure == .numbers, additionSection != nil {
             type = .simpleAddition
@@ -139,19 +145,24 @@ struct MissionGeneratorEngine: Sendable {
     private func optionCount(_ difficulty: Int) -> Int { min(2 + difficulty, 6) }
 
     private func letterQuestion(difficulty: Int, spokenSound: Bool) -> MissionQuestion {
-        // Early levels use visually distinct letters; higher levels add look-alikes.
+        // Early levels use visually distinct letters; from level 3 the rest
+        // of the alphabet joins in, and level 4+ adds the look-alikes.
         let easyPool = "ABCDEFHKLMOSTU".map(String.init)
-        let trickyPairs = [["B", "D"], ["M", "W"], ["P", "Q"], ["E", "F"], ["O", "Q"], ["I", "L"]]
+        let fullPool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init)
+        let pool0 = difficulty >= 3 ? fullPool : easyPool
+        let trickyPairs = [["B", "D"], ["M", "W"], ["P", "Q"], ["E", "F"], ["O", "Q"],
+                           ["I", "L"], ["N", "Z"], ["C", "G"], ["U", "V"], ["R", "P"],
+                           ["K", "X"], ["S", "Z"]]
 
         var options: [QuestionOption]
         let target: String
         if difficulty >= 4, let pair = trickyPairs.randomElement() {
             target = pair[0]
-            var pool = pair + easyPool.shuffled().prefix(optionCount(difficulty) - 2)
+            var pool = pair + pool0.shuffled().prefix(optionCount(difficulty) - 2)
             pool = Array(Set(pool)).shuffled()
             options = pool.map { QuestionOption(display: $0, label: letterLabel($0)) }
         } else {
-            let pool = easyPool.shuffled().prefix(optionCount(difficulty))
+            let pool = pool0.shuffled().prefix(optionCount(difficulty))
             target = pool.first!
             options = pool.map { QuestionOption(display: $0, label: letterLabel($0)) }.shuffled()
         }
@@ -203,9 +214,8 @@ struct MissionGeneratorEngine: Sendable {
     }
 
     private func traceQuestion(difficulty: Int) -> MissionQuestion {
-        let letters = ["L", "T", "I", "V", "O", "C"]
-        let letter = letters.randomElement()!
         // Simple normalized guide paths (production: load from letter-path assets).
+        // Straight-stroke letters first; the curved ones join from level 3.
         let guides: [String: [TracePoint]] = [
             "L": [TracePoint(x: 0.35, y: 0.2), TracePoint(x: 0.35, y: 0.8), TracePoint(x: 0.7, y: 0.8)],
             "T": [TracePoint(x: 0.2, y: 0.2), TracePoint(x: 0.8, y: 0.2), TracePoint(x: 0.5, y: 0.2), TracePoint(x: 0.5, y: 0.8)],
@@ -214,8 +224,36 @@ struct MissionGeneratorEngine: Sendable {
             "O": [TracePoint(x: 0.5, y: 0.2), TracePoint(x: 0.25, y: 0.5), TracePoint(x: 0.5, y: 0.8),
                   TracePoint(x: 0.75, y: 0.5), TracePoint(x: 0.5, y: 0.2)],
             "C": [TracePoint(x: 0.7, y: 0.25), TracePoint(x: 0.35, y: 0.35), TracePoint(x: 0.3, y: 0.55),
-                  TracePoint(x: 0.45, y: 0.75), TracePoint(x: 0.7, y: 0.75)]
+                  TracePoint(x: 0.45, y: 0.75), TracePoint(x: 0.7, y: 0.75)],
+            "X": [TracePoint(x: 0.3, y: 0.2), TracePoint(x: 0.7, y: 0.8),
+                  TracePoint(x: 0.7, y: 0.2), TracePoint(x: 0.3, y: 0.8)],
+            "A": [TracePoint(x: 0.3, y: 0.8), TracePoint(x: 0.5, y: 0.2), TracePoint(x: 0.7, y: 0.8),
+                  TracePoint(x: 0.38, y: 0.55), TracePoint(x: 0.62, y: 0.55)],
+            "H": [TracePoint(x: 0.3, y: 0.2), TracePoint(x: 0.3, y: 0.8),
+                  TracePoint(x: 0.3, y: 0.5), TracePoint(x: 0.7, y: 0.5),
+                  TracePoint(x: 0.7, y: 0.2), TracePoint(x: 0.7, y: 0.8)],
+            "E": [TracePoint(x: 0.7, y: 0.2), TracePoint(x: 0.32, y: 0.2),
+                  TracePoint(x: 0.32, y: 0.5), TracePoint(x: 0.62, y: 0.5),
+                  TracePoint(x: 0.32, y: 0.5), TracePoint(x: 0.32, y: 0.8),
+                  TracePoint(x: 0.7, y: 0.8)],
+            "F": [TracePoint(x: 0.7, y: 0.2), TracePoint(x: 0.32, y: 0.2),
+                  TracePoint(x: 0.32, y: 0.8), TracePoint(x: 0.32, y: 0.5),
+                  TracePoint(x: 0.62, y: 0.5)],
+            "N": [TracePoint(x: 0.3, y: 0.8), TracePoint(x: 0.3, y: 0.2),
+                  TracePoint(x: 0.7, y: 0.8), TracePoint(x: 0.7, y: 0.2)],
+            "M": [TracePoint(x: 0.25, y: 0.8), TracePoint(x: 0.25, y: 0.2),
+                  TracePoint(x: 0.5, y: 0.55), TracePoint(x: 0.75, y: 0.2),
+                  TracePoint(x: 0.75, y: 0.8)],
+            "U": [TracePoint(x: 0.3, y: 0.2), TracePoint(x: 0.3, y: 0.62),
+                  TracePoint(x: 0.5, y: 0.8), TracePoint(x: 0.7, y: 0.62),
+                  TracePoint(x: 0.7, y: 0.2)],
+            "S": [TracePoint(x: 0.68, y: 0.28), TracePoint(x: 0.36, y: 0.24),
+                  TracePoint(x: 0.34, y: 0.46), TracePoint(x: 0.66, y: 0.56),
+                  TracePoint(x: 0.64, y: 0.76), TracePoint(x: 0.32, y: 0.74)]
         ]
+        let straight = ["L", "T", "I", "V", "X", "H", "E", "F", "N", "M"]
+        let letters = difficulty <= 2 ? straight : Array(guides.keys)
+        let letter = letters.randomElement() ?? "L"
         return MissionQuestion(
             id: UUID(),
             prompt: String(localized: "Trace the letter \(letter) with your finger!"),
@@ -269,7 +307,10 @@ struct MissionGeneratorEngine: Sendable {
         let shapes: [(String, String)] = [
             ("🔵", String(localized: "Circle")), ("🟦", String(localized: "Square")),
             ("🔺", String(localized: "Triangle")), ("🟧", String(localized: "Rectangle")),
-            ("⭐", String(localized: "Star")), ("💜", String(localized: "Heart"))
+            ("⭐", String(localized: "Star")), ("💜", String(localized: "Heart")),
+            ("🔶", String(localized: "Diamond")), ("🥚", String(localized: "Oval")),
+            ("➕", String(localized: "Cross")), ("🌙", String(localized: "Crescent")),
+            ("🔻", String(localized: "Arrow")), ("⬡", String(localized: "Hexagon"))
         ]
         let pool = shapes.shuffled().prefix(optionCount(difficulty))
         let target = pool.first!
@@ -313,7 +354,13 @@ struct MissionGeneratorEngine: Sendable {
             ("duck_quack", "🦆", String(localized: "Duck")),
             ("dog_woof", "🐶", String(localized: "Dog")),
             ("cat_meow", "🐱", String(localized: "Cat")),
-            ("owl_hoot", "🦉", String(localized: "Owl"))
+            ("owl_hoot", "🦉", String(localized: "Owl")),
+            ("sheep_baa", "🐑", String(localized: "Sheep")),
+            ("horse_neigh", "🐴", String(localized: "Horse")),
+            ("frog_croak", "🐸", String(localized: "Frog")),
+            ("bee_buzz", "🐝", String(localized: "Bee")),
+            ("elephant_trumpet", "🐘", String(localized: "Elephant")),
+            ("bird_tweet", "🐦", String(localized: "Bird"))
         ]
         let pool = animals.shuffled().prefix(optionCount(difficulty))
         let target = pool.first!
@@ -348,7 +395,11 @@ struct MissionGeneratorEngine: Sendable {
         let animals: [(String, String)] = [
             ("🦁", String(localized: "Lion")), ("🐰", String(localized: "Rabbit")),
             ("🐵", String(localized: "Monkey")), ("🦊", String(localized: "Fox")),
-            ("🐻", String(localized: "Bear")), ("🦒", String(localized: "Giraffe"))
+            ("🐻", String(localized: "Bear")), ("🦒", String(localized: "Giraffe")),
+            ("🐘", String(localized: "Elephant")), ("🦓", String(localized: "Zebra")),
+            ("🐧", String(localized: "Penguin")), ("🦔", String(localized: "Hedgehog")),
+            ("🐢", String(localized: "Turtle")), ("🦉", String(localized: "Owl")),
+            ("🐿️", String(localized: "Squirrel")), ("🦌", String(localized: "Deer"))
         ]
         let pool = animals.shuffled().prefix(optionCount(difficulty))
         let target = pool.first!

@@ -151,7 +151,7 @@ struct BubblePopGameView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ForestTheme.Gradients.magic.ignoresSafeArea()
+                ForestSceneBackground(place: .riverbank, legibility: 0.1)
 
                 ForEach(viewModel.bubbles) { bubble in
                     Button {

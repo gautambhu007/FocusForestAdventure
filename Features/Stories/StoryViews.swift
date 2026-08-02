@@ -58,7 +58,7 @@ struct StoryReader: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.magic.ignoresSafeArea()
+            ForestSceneBackground(place: .magicGrove, legibility: 0.2)
             MagicDustView().ignoresSafeArea()
 
             VStack(spacing: 18) {

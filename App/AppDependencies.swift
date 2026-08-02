@@ -28,6 +28,7 @@ final class AppDependencies {
     let statisticsRepository: any StatisticsRepository
     let achievementRepository: any AchievementRepository
     let storyRepository: any StoryRepository
+    let customWordRepository: any CustomWordRepository
 
     // MARK: Engines & Services
     let soundEngine: any SoundEngineProtocol
@@ -87,12 +88,14 @@ final class AppDependencies {
         let statsRepo = SwiftDataStatisticsRepository(context: context)
         let storyRepo = SwiftDataStoryRepository(context: context)
         let achievementRepo = SwiftDataAchievementRepository(context: context)
+        let customWordRepo = SwiftDataCustomWordRepository(context: context)
         self.childRepository = childRepo
         self.missionRepository = missionRepo
         self.forestRepository = forestRepo
         self.statisticsRepository = statsRepo
         self.achievementRepository = achievementRepo
         self.storyRepository = storyRepo
+        self.customWordRepository = customWordRepo
 
         // Services
         let sound = SoundEngine()
@@ -160,7 +163,8 @@ final class AppDependencies {
             rewardEngine: reward,
             growthEngine: growth,
             achievementEngine: achievements,
-            difficultyEngine: difficulty
+            difficultyEngine: difficulty,
+            treasureEngine: TreasureEngine()
         )
         self.fetchTodayPlanUseCase = FetchTodayPlanUseCase(
             statisticsRepository: statsRepo,
@@ -197,6 +201,9 @@ enum AppRoute: Hashable {
     case hindiAlphabet
     case hindiLearning
     case hindiModule(String)
+    case listeningHub
+    case listeningMyWords
+    case wordExplorer
     case barakhadi
     case multiplicationTables
     case rhymes

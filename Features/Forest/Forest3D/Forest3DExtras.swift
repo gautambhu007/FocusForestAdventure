@@ -21,31 +21,24 @@ struct ForestLearnItem {
 
 extension Forest3DBuilder {
 
-    /// Keyed by node name: "learn.<key>"
-    static let learnItems: [String: ForestLearnItem] = [
-        "sunflower": ForestLearnItem(emoji: "🌻", name: String(localized: "Sunflower"),
-            fact: String(localized: "Sunflowers turn their faces to follow the sun across the sky!")),
-        "tulip": ForestLearnItem(emoji: "🌷", name: String(localized: "Tulip"),
-            fact: String(localized: "Tulips close their petals at night to keep warm.")),
-        "daisy": ForestLearnItem(emoji: "🌼", name: String(localized: "Daisy"),
-            fact: String(localized: "A daisy is really many tiny flowers packed together in one!")),
-        "lavender": ForestLearnItem(emoji: "💜", name: String(localized: "Lavender"),
-            fact: String(localized: "Lavender smells so nice that bees and butterflies love it.")),
-        "mushroom": ForestLearnItem(emoji: "🍄", name: String(localized: "Mushroom"),
-            fact: String(localized: "Mushrooms are not plants — they are fungi, and they help old leaves turn back into soil.")),
-        "fern": ForestLearnItem(emoji: "🌿", name: String(localized: "Fern"),
-            fact: String(localized: "Ferns are older than dinosaurs — they have no flowers at all!")),
-        "berry": ForestLearnItem(emoji: "🫐", name: String(localized: "Berry Bush"),
-            fact: String(localized: "Birds eat berries and spread the seeds so new bushes can grow.")),
-        "tallgrass": ForestLearnItem(emoji: "🌾", name: String(localized: "Tall Grass"),
-            fact: String(localized: "Tall grass is a cozy hiding home for rabbits and crickets.")),
-        "goldfish": ForestLearnItem(emoji: "🐠", name: String(localized: "Goldfish"),
-            fact: String(localized: "Fish breathe underwater with special slits called gills.")),
-        "trout": ForestLearnItem(emoji: "🐟", name: String(localized: "Trout"),
-            fact: String(localized: "Trout love cold, clean rivers and can leap right out of the water!")),
-        "catfish": ForestLearnItem(emoji: "🐡", name: String(localized: "Catfish"),
-            fact: String(localized: "Catfish have whiskers like a cat — they use them to feel for food in the mud."))
-    ]
+    /// Keyed by node name: "learn.<key>". Every plant species in the
+    /// catalog is tappable, plus the fish that swim in the river.
+    static let learnItems: [String: ForestLearnItem] = {
+        var items: [String: ForestLearnItem] = [
+            "goldfish": ForestLearnItem(emoji: "🐠", name: String(localized: "Goldfish"),
+                fact: String(localized: "Fish breathe underwater with special slits called gills.")),
+            "trout": ForestLearnItem(emoji: "🐟", name: String(localized: "Trout"),
+                fact: String(localized: "Trout love cold, clean rivers and can leap right out of the water!")),
+            "catfish": ForestLearnItem(emoji: "🐡", name: String(localized: "Catfish"),
+                fact: String(localized: "Catfish have whiskers like a cat — they use them to feel for food in the mud."))
+        ]
+        for species in PlantCatalog.all {
+            items[species.key] = ForestLearnItem(emoji: species.emoji,
+                                                 name: species.name,
+                                                 fact: species.fact)
+        }
+        return items
+    }()
 
     // MARK: - Plants
 
@@ -66,95 +59,407 @@ extension Forest3DBuilder {
         return node
     }
 
+    private static func uiColor(_ c: PlantColor) -> UIColor {
+        UIColor(red: c.r, green: c.g, blue: c.b, alpha: 1)
+    }
+
+    private static func solid(_ c: PlantColor) -> SCNMaterial {
+        let m = SCNMaterial()
+        m.diffuse.contents = uiColor(c)
+        m.roughness.contents = 0.85
+        return m
+    }
+
+    /// Local textured material (the builder's own helper is file-private).
+    private static func textured(_ image: UIImage) -> SCNMaterial {
+        let m = SCNMaterial()
+        m.diffuse.contents = image
+        return m
+    }
+
+    /// A double-sided copy of a material, for flat leaves and petals.
+    private static func flat(_ c: PlantColor) -> SCNMaterial {
+        let m = solid(c)
+        m.isDoubleSided = true
+        return m
+    }
+
+    /// A flat leaf blade or petal. Takes a shared material so a whole
+    /// plant can be flattened into a couple of draw calls.
+    private static func facingPlane(width: CGFloat, height: CGFloat,
+                                    mat: SCNMaterial) -> SCNNode {
+        let node = SCNNode(geometry: SCNPlane(width: width, height: height))
+        node.geometry?.materials = [mat]
+        return node
+    }
+
+    /// Five petals around a golden centre — used by every `.bloom` species
+    /// so the flower takes the species' own color exactly.
+    private static func flowerHead(radius: Float, mat petalMat: SCNMaterial) -> SCNNode {
+        let head = SCNNode()
+        for i in 0..<5 {
+            let a = Float(i) / 5 * 2 * .pi
+            let petal = SCNNode(geometry: SCNSphere(radius: CGFloat(radius * 0.52)))
+            petal.geometry?.materials = [petalMat]
+            petal.scale = SCNVector3(1, 0.35, 1.25)
+            petal.position = SCNVector3(cosf(a) * radius * 0.62, 0, sinf(a) * radius * 0.62)
+            petal.eulerAngles.y = -a
+            head.addChildNode(petal)
+        }
+        let centre = SCNNode(geometry: SCNSphere(radius: CGFloat(radius * 0.34)))
+        centre.geometry?.materials = [sharedGold]
+        centre.scale = SCNVector3(1, 0.6, 1)
+        head.addChildNode(centre)
+        return head
+    }
+
+    /// Deterministic per-species jitter, so a species looks the same
+    /// every launch but each individual differs a little.
+    private struct Wobble {
+        var s: UInt64
+        init(_ seed: Int) { s = UInt64(bitPattern: Int64(seed &* 2654435761 &+ 12345)) | 1 }
+        mutating func next() -> Float {
+            s = s &* 6364136223846793005 &+ 1442695040888963407
+            return Float((s >> 33) & 0xFFFF) / Float(0xFFFF)
+        }
+        mutating func range(_ a: Float, _ b: Float) -> Float { a + next() * (b - a) }
+    }
+
+    /// Grow one plant from the catalog. `kind` is the species key; the
+    /// form archetype decides the geometry, the species supplies height
+    /// and colors. Unknown keys fall back to a grass tuft.
     static func plant(kind: String) -> SCNNode {
         let root = SCNNode()
         root.name = "learn.\(kind)"
-        switch kind {
-        case "sunflower":
-            let stem = SCNNode(geometry: SCNCylinder(radius: 0.05, height: 1.6))
-            stem.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.30, green: 0.55, blue: 0.28, alpha: 1)
-            stem.position = SCNVector3(0, 0.8, 0)
-            root.addChildNode(stem)
-            let head = SCNNode(geometry: SCNPlane(width: 0.9, height: 0.9))
-            let m = SCNMaterial()
-            m.diffuse.contents = ForestTextures.flower(hue: 0.13)
-            m.isDoubleSided = true; m.transparencyMode = .aOne
-            head.geometry?.materials = [m]
-            head.position = SCNVector3(0, 1.65, 0)
-            head.constraints = [SCNBillboardConstraint()]
-            root.addChildNode(head)
-        case "tulip":
-            let stem = SCNNode(geometry: SCNCylinder(radius: 0.035, height: 0.8))
-            stem.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.32, green: 0.58, blue: 0.30, alpha: 1)
-            stem.position = SCNVector3(0, 0.4, 0)
-            root.addChildNode(stem)
-            let cup = SCNNode(geometry: SCNSphere(radius: 0.16))
-            cup.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.92, green: 0.30, blue: 0.45, alpha: 1)
-            cup.scale = SCNVector3(1, 1.35, 1)
-            cup.position = SCNVector3(0, 0.92, 0)
-            root.addChildNode(cup)
-        case "daisy":
-            let stem = SCNNode(geometry: SCNCylinder(radius: 0.03, height: 0.6))
-            stem.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.35, green: 0.62, blue: 0.36, alpha: 1)
-            stem.position = SCNVector3(0, 0.3, 0)
-            root.addChildNode(stem)
-            let head = SCNNode(geometry: SCNPlane(width: 0.5, height: 0.5))
-            let m = SCNMaterial()
-            m.diffuse.contents = ForestTextures.flower(hue: 0.55)
-            m.isDoubleSided = true; m.transparencyMode = .aOne
-            head.geometry?.materials = [m]
-            head.position = SCNVector3(0, 0.62, 0)
-            head.constraints = [SCNBillboardConstraint()]
-            root.addChildNode(head)
-        case "lavender":
-            for dx in [-0.12, 0, 0.12] {
-                let stem = SCNNode(geometry: SCNCylinder(radius: 0.025, height: 0.9))
-                stem.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.35, green: 0.58, blue: 0.38, alpha: 1)
-                stem.position = SCNVector3(Float(dx), 0.45, Float(dx) * 0.5)
-                root.addChildNode(stem)
-                let bud = SCNNode(geometry: SCNCapsule(capRadius: 0.06, height: 0.3))
-                bud.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.62, green: 0.48, blue: 0.85, alpha: 1)
-                bud.position = SCNVector3(Float(dx), 1.0, Float(dx) * 0.5)
-                root.addChildNode(bud)
+        guard let species = PlantCatalog.plant(kind) else {
+            root.addChildNode(billboard(ForestTextures.tallGrass, width: 1.3, height: 1.0))
+            return root
+        }
+
+        let h = species.height
+        let accent = species.accent
+        let foliage = species.foliage
+        var rng = Wobble(abs(kind.hashValue))
+
+        switch species.form {
+
+        case .tuft:
+            // Blades fanning out of the ground, tinted to the species.
+            let blades = billboard(ForestTextures.tallGrass,
+                                   width: CGFloat(h * 1.15), height: CGFloat(h))
+            for child in blades.childNodes {
+                child.geometry?.firstMaterial?.multiply.contents = uiColor(foliage)
             }
-        case "mushroom":
-            let stalk = SCNNode(geometry: SCNCylinder(radius: 0.09, height: 0.34))
-            stalk.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.95, green: 0.92, blue: 0.84, alpha: 1)
-            stalk.position = SCNVector3(0, 0.17, 0)
+            root.addChildNode(blades)
+            // A few taller blades in the accent color break up the silhouette.
+            for _ in 0..<3 {
+                let blade = facingPlane(width: CGFloat(h * 0.10),
+                                        height: CGFloat(h * rng.range(0.8, 1.25)),
+                                        mat: accentFlat)
+                blade.position = SCNVector3(rng.range(-0.18, 0.18),
+                                            h * 0.55,
+                                            rng.range(-0.18, 0.18))
+                blade.eulerAngles.z = rng.range(-0.25, 0.25)
+                root.addChildNode(blade)
+            }
+
+        case .cane:
+            // Segmented stalks with a knuckle between each section.
+            let stalks = 3
+            for i in 0..<stalks {
+                let a = Float(i) / Float(stalks) * 2 * .pi
+                let x = cosf(a) * 0.16, z = sinf(a) * 0.16
+                let segments = 5
+                let segH = h / Float(segments)
+                for s in 0..<segments {
+                    let seg = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.032),
+                                                            height: CGFloat(segH * 0.9)))
+                    seg.geometry?.materials = [foliageMat]
+                    seg.position = SCNVector3(x, segH * (Float(s) + 0.5), z)
+                    root.addChildNode(seg)
+                    let knuckle = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.038)))
+                    knuckle.geometry?.materials = [accentMat]
+                    knuckle.position = SCNVector3(x, segH * Float(s + 1), z)
+                    root.addChildNode(knuckle)
+                }
+                // Long leaves peeling off the top third.
+                for l in 0..<3 {
+                    let leaf = facingPlane(width: CGFloat(h * 0.10),
+                                           height: CGFloat(h * 0.34), mat: foliageFlat)
+                    leaf.position = SCNVector3(x, h * (0.62 + Float(l) * 0.12), z)
+                    leaf.eulerAngles = SCNVector3(0, rng.range(0, 6.28), rng.range(-0.7, 0.7))
+                    root.addChildNode(leaf)
+                }
+            }
+
+        case .reed:
+            // Slim stalks, each topped with a seed head.
+            for i in 0..<5 {
+                let x = rng.range(-0.14, 0.14), z = rng.range(-0.14, 0.14)
+                let sh = h * rng.range(0.8, 1.0)
+                let stem = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.018),
+                                                         height: CGFloat(sh)))
+                stem.geometry?.materials = [foliageMat]
+                stem.position = SCNVector3(x, sh / 2, z)
+                stem.eulerAngles.z = rng.range(-0.08, 0.08)
+                root.addChildNode(stem)
+                let head = SCNNode(geometry: SCNCapsule(capRadius: CGFloat(h * 0.05),
+                                                        height: CGFloat(h * 0.26)))
+                head.geometry?.materials = [accentMat]
+                head.position = SCNVector3(x, sh + h * 0.09, z)
+                root.addChildNode(head)
+                _ = i
+            }
+
+        case .bloom:
+            let stemH = h * 0.82
+            let stem = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.028),
+                                                     height: CGFloat(stemH)))
+            stem.geometry?.materials = [foliageMat]
+            stem.position = SCNVector3(0, stemH / 2, 0)
+            root.addChildNode(stem)
+            for side: Float in [-1, 1] {
+                let leaf = facingPlane(width: CGFloat(h * 0.26), height: CGFloat(h * 0.12),
+                                       mat: foliageFlat)
+                leaf.position = SCNVector3(side * h * 0.12, stemH * 0.42, 0)
+                leaf.eulerAngles.z = side * 0.5
+                root.addChildNode(leaf)
+            }
+            let head = flowerHead(radius: h * 0.26, mat: accentFlat)
+            head.position = SCNVector3(0, stemH + h * 0.06, 0)
+            root.addChildNode(head)
+
+        case .spike:
+            // Several stems carrying tapering flower spires.
+            for i in 0..<3 {
+                let dx = (Float(i) - 1) * h * 0.13
+                let sh = h * rng.range(0.75, 1.0)
+                let stem = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.022),
+                                                         height: CGFloat(sh * 0.7)))
+                stem.geometry?.materials = [foliageMat]
+                stem.position = SCNVector3(dx, sh * 0.35, dx * 0.4)
+                root.addChildNode(stem)
+                // Bells getting smaller toward the tip.
+                for b in 0..<5 {
+                    let f = Float(b) / 4
+                    let bell = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.06 * (1 - f * 0.55))))
+                    bell.geometry?.materials = [accentMat]
+                    bell.scale = SCNVector3(1, 1.3, 1)
+                    bell.position = SCNVector3(dx, sh * (0.66 + f * 0.30), dx * 0.4)
+                    root.addChildNode(bell)
+                }
+            }
+
+        case .bush:
+            // Two or three overlapping leafy puffs.
+            for i in 0..<3 {
+                let r = h * (0.42 - Float(i) * 0.06)
+                let puff = SCNNode(geometry: SCNSphere(radius: CGFloat(r)))
+                puff.geometry?.materials = [foliageMat]
+                puff.scale = SCNVector3(1, 0.82, 1)
+                puff.position = SCNVector3(rng.range(-0.22, 0.22) * h,
+                                           h * (0.42 + Float(i) * 0.14),
+                                           rng.range(-0.22, 0.22) * h)
+                root.addChildNode(puff)
+            }
+            // Blossoms dotted over the surface.
+            for _ in 0..<7 {
+                let a = rng.range(0, 6.28)
+                let e = rng.range(0.2, 0.95)
+                let bloom = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.055)))
+                bloom.geometry?.materials = [accentMat]
+                bloom.position = SCNVector3(cosf(a) * h * 0.36,
+                                            h * (0.35 + e * 0.55),
+                                            sinf(a) * h * 0.36)
+                root.addChildNode(bloom)
+            }
+
+        case .berryBush:
+            for i in 0..<2 {
+                let puff = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.44)))
+                puff.geometry?.materials = [foliageMat]
+                puff.scale = SCNVector3(1, 0.78, 1)
+                puff.position = SCNVector3(rng.range(-0.2, 0.2) * h,
+                                           h * (0.44 + Float(i) * 0.2),
+                                           rng.range(-0.2, 0.2) * h)
+                root.addChildNode(puff)
+            }
+            // Berries hang in little clusters of three.
+            for _ in 0..<6 {
+                let a = rng.range(0, 6.28)
+                let e = rng.range(0.25, 0.85)
+                let cx = cosf(a) * h * 0.40, cz = sinf(a) * h * 0.40
+                for b in 0..<3 {
+                    let berry = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.055)))
+                    berry.geometry?.materials = [accentMat]
+                    berry.position = SCNVector3(cx + Float(b - 1) * h * 0.06,
+                                                h * (0.30 + e * 0.55) - Float(b) * h * 0.03,
+                                                cz)
+                    root.addChildNode(berry)
+                }
+            }
+
+        case .fruitTree:
+            let trunkH = h * 0.45
+            let trunk = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.055),
+                                                      height: CGFloat(trunkH)))
+            trunk.geometry?.materials = [barkMat]
+            trunk.position = SCNVector3(0, trunkH / 2, 0)
+            root.addChildNode(trunk)
+            let canopyMat = foliageMat
+            let puffs: [(Float, Float, Float, Float)] = [
+                (0.34, 0, 0.80, 0), (0.24, -0.22, 0.66, 0.10),
+                (0.24, 0.22, 0.68, -0.08), (0.20, 0.04, 0.98, 0.06)
+            ]
+            for (r, dx, dy, dz) in puffs {
+                let puff = SCNNode(geometry: SCNSphere(radius: CGFloat(h * r)))
+                puff.geometry?.materials = [canopyMat]
+                puff.scale = SCNVector3(1, 0.86, 1)
+                puff.position = SCNVector3(h * dx, h * dy, h * dz)
+                root.addChildNode(puff)
+            }
+            // Fruit hanging under the canopy.
+            for _ in 0..<8 {
+                let a = rng.range(0, 6.28)
+                let rad = rng.range(0.18, 0.36) * h
+                let fruit = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.055)))
+                fruit.geometry?.materials = [accentMat]
+                fruit.position = SCNVector3(cosf(a) * rad,
+                                            h * rng.range(0.62, 0.86),
+                                            sinf(a) * rad)
+                root.addChildNode(fruit)
+            }
+
+        case .mushroom:
+            let stalkH = h * 0.62
+            let stalk = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.16),
+                                                      height: CGFloat(stalkH)))
+            stalk.geometry?.materials = [foliageMat]
+            stalk.position = SCNVector3(0, stalkH / 2, 0)
             root.addChildNode(stalk)
-            let cap = SCNNode(geometry: SCNSphere(radius: 0.26))
-            cap.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.85, green: 0.28, blue: 0.24, alpha: 1)
+            let cap = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.46)))
+            cap.geometry?.materials = [accentMat]
             cap.scale = SCNVector3(1, 0.55, 1)
-            cap.position = SCNVector3(0, 0.38, 0)
+            cap.position = SCNVector3(0, stalkH + h * 0.06, 0)
             root.addChildNode(cap)
-            for (sx, sz) in [(-0.1, 0.08), (0.12, -0.05), (0.0, 0.14)] {
-                let dot = SCNNode(geometry: SCNSphere(radius: 0.045))
-                dot.geometry?.firstMaterial?.diffuse.contents = UIColor.white
-                dot.position = SCNVector3(Float(sx), 0.5, Float(sz))
+            for _ in 0..<4 {
+                let a = rng.range(0, 6.28)
+                let dot = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.07)))
+                dot.geometry?.materials = [whiteMat]
+                dot.position = SCNVector3(cosf(a) * h * 0.26,
+                                          stalkH + h * 0.19,
+                                          sinf(a) * h * 0.26)
                 root.addChildNode(dot)
             }
-        case "fern":
-            root.addChildNode(billboard(ForestTextures.fern, width: 1.1, height: 1.1))
-        case "berry":
-            let bush = SCNNode(geometry: SCNSphere(radius: 0.5))
-            bush.geometry?.firstMaterial?.diffuse.contents = ForestTextures.leaves
-            bush.scale = SCNVector3(1, 0.75, 1)
-            bush.position = SCNVector3(0, 0.4, 0)
-            root.addChildNode(bush)
-            var s: UInt64 = 7
-            for _ in 0..<8 {
-                s = s &* 6364136223846793005 &+ 1
-                let a = Float((s >> 33) & 1023) / 1023 * 2 * .pi
-                s = s &* 6364136223846793005 &+ 1
-                let e = Float((s >> 33) & 1023) / 1023
-                let berry = SCNNode(geometry: SCNSphere(radius: 0.06))
-                berry.geometry?.firstMaterial?.diffuse.contents = UIColor(red: 0.30, green: 0.35, blue: 0.75, alpha: 1)
-                berry.position = SCNVector3(cosf(a) * 0.42, 0.35 + e * 0.35, sinf(a) * 0.42)
-                root.addChildNode(berry)
+
+        case .groundCover:
+            // A low spreading mat of leaves with flowers or fruit peeping out.
+            for _ in 0..<9 {
+                let a = rng.range(0, 6.28)
+                let rad = rng.range(0, 0.45)
+                let leaf = SCNNode(geometry: SCNSphere(radius: CGFloat(max(0.06, h * 0.9))))
+                leaf.geometry?.materials = [foliageMat]
+                leaf.scale = SCNVector3(1.4, 0.28, 1.4)
+                leaf.position = SCNVector3(cosf(a) * rad, h * 0.4, sinf(a) * rad)
+                root.addChildNode(leaf)
             }
-        default: // tallgrass
-            root.addChildNode(billboard(ForestTextures.tallGrass, width: 1.3, height: 1.0))
+            for _ in 0..<4 {
+                let a = rng.range(0, 6.28)
+                let dot = SCNNode(geometry: SCNSphere(radius: CGFloat(max(0.04, h * 0.42))))
+                dot.geometry?.materials = [accentMat]
+                dot.position = SCNVector3(cosf(a) * 0.3, h * 0.85, sinf(a) * 0.3)
+                root.addChildNode(dot)
+            }
+
+        case .vine:
+            // A wavy climbing stem with leaves and flowers along it.
+            let steps = 9
+            for i in 0..<steps {
+                let f = Float(i) / Float(steps - 1)
+                let y = f * h
+                let x = sinf(f * 5.4) * h * 0.10
+                let z = cosf(f * 4.1) * h * 0.08
+                let seg = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.032)))
+                seg.geometry?.materials = [foliageMat]
+                seg.position = SCNVector3(x, y, z)
+                root.addChildNode(seg)
+                if i % 2 == 0 {
+                    let leaf = facingPlane(width: CGFloat(h * 0.20), height: CGFloat(h * 0.16),
+                                           mat: foliageFlat)
+                    leaf.position = SCNVector3(x + h * 0.11, y, z)
+                    leaf.eulerAngles.z = rng.range(-0.4, 0.4)
+                    root.addChildNode(leaf)
+                }
+                if i % 3 == 1 {
+                    let bloom = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.055)))
+                    bloom.geometry?.materials = [accentMat]
+                    bloom.position = SCNVector3(x - h * 0.09, y, z + h * 0.04)
+                    root.addChildNode(bloom)
+                }
+            }
+
+        case .succulent:
+            // Thick upright pads radiating from the base.
+            for i in 0..<6 {
+                let a = Float(i) / 6 * 2 * .pi
+                let pad = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.30)))
+                pad.geometry?.materials = [foliageMat]
+                pad.scale = SCNVector3(0.42, 1.5, 0.9)
+                pad.position = SCNVector3(cosf(a) * h * 0.18, h * 0.45, sinf(a) * h * 0.18)
+                pad.eulerAngles = SCNVector3(cosf(a) * 0.35, -a, sinf(a) * 0.35)
+                root.addChildNode(pad)
+            }
+            let crown = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.12)))
+            crown.geometry?.materials = [accentMat]
+            crown.position = SCNVector3(0, h * 0.92, 0)
+            root.addChildNode(crown)
+
+        case .palm:
+            let trunkH = h * 0.72
+            let trunk = SCNNode(geometry: SCNCylinder(radius: CGFloat(h * 0.05),
+                                                      height: CGFloat(trunkH)))
+            trunk.geometry?.materials = [barkMat]
+            trunk.position = SCNVector3(0, trunkH / 2, 0)
+            root.addChildNode(trunk)
+            // Arching fronds around the crown.
+            for i in 0..<7 {
+                let a = Float(i) / 7 * 2 * .pi
+                let frond = facingPlane(width: CGFloat(h * 0.20), height: CGFloat(h * 0.52),
+                                        mat: foliageFlat)
+                frond.pivot = SCNMatrix4MakeTranslation(0, Float(h * 0.26), 0)
+                frond.position = SCNVector3(cosf(a) * h * 0.06, trunkH, sinf(a) * h * 0.06)
+                frond.eulerAngles = SCNVector3(cosf(a) * 0.9, -a, sinf(a) * 0.9)
+                root.addChildNode(frond)
+            }
+            // Fruit bunched under the crown.
+            for i in 0..<5 {
+                let a = Float(i) / 5 * 2 * .pi
+                let fruit = SCNNode(geometry: SCNSphere(radius: CGFloat(h * 0.055)))
+                fruit.geometry?.materials = [accentMat]
+                fruit.position = SCNVector3(cosf(a) * h * 0.10, trunkH - h * 0.06, sinf(a) * h * 0.10)
+                root.addChildNode(fruit)
+            }
+
+        case .rootVeg:
+            // The root shoulder peeking out of the soil, leaves on top.
+            let rootNode = SCNNode(geometry: SCNCone(topRadius: CGFloat(h * 0.22),
+                                                     bottomRadius: 0,
+                                                     height: CGFloat(h * 0.5)))
+            rootNode.geometry?.materials = [accentMat]
+            rootNode.position = SCNVector3(0, h * 0.12, 0)
+            rootNode.eulerAngles.x = .pi        // point the tip down into the soil
+            root.addChildNode(rootNode)
+            for i in 0..<5 {
+                let a = Float(i) / 5 * 2 * .pi
+                let leaf = facingPlane(width: CGFloat(h * 0.18), height: CGFloat(h * 0.62),
+                                       mat: foliageFlat)
+                leaf.pivot = SCNMatrix4MakeTranslation(0, Float(h * 0.31), 0)
+                leaf.position = SCNVector3(cosf(a) * h * 0.06, h * 0.34, sinf(a) * h * 0.06)
+                leaf.eulerAngles = SCNVector3(cosf(a) * 0.4, -a, sinf(a) * 0.4)
+                root.addChildNode(leaf)
+            }
         }
+
         return root
     }
 

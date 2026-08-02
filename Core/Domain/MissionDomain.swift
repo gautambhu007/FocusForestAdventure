@@ -149,6 +149,9 @@ struct RewardBundle: Hashable, Sendable {
     var magicDust: Int = 0
     var forestXP: Int = 0
     var newlyUnlocked: [ForestElement] = []
+    /// Things earned for the forest this mission — these are what open
+    /// the Magic Forest gate.
+    var newTreasures: [ForestTreasure] = []
     var newAchievements: [AchievementID] = []
     var bunnyPhrase: String = BunnyPhrase.celebration.text
 }

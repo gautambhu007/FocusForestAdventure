@@ -118,6 +118,35 @@ final class UseCaseTests: XCTestCase {
         try deps.achievementRepository.award(.firstMission, to: child)
         XCTAssertEqual(try deps.achievementRepository.earned(for: child).count, 1)
     }
+
+    // MARK: Listening Corner
+
+    func testCustomWordRepositoryAddListDelete() throws {
+        let child = try deps.childRepository.activeChild()
+        XCTAssertTrue(try deps.customWordRepository.words(for: child).isEmpty)
+
+        try deps.customWordRepository.add("bunny", for: child)
+        try deps.customWordRepository.add("forest", for: child)
+        let words = try deps.customWordRepository.words(for: child)
+        XCTAssertEqual(words.count, 2)
+        XCTAssertEqual(Set(words.map(\.text)), ["bunny", "forest"])
+
+        try deps.customWordRepository.delete(words[0])
+        XCTAssertEqual(try deps.customWordRepository.words(for: child).count, 1)
+    }
+
+    func testForcedMissionTypeOverridesDefault() throws {
+        let child = try deps.childRepository.activeChild()
+        let plan = try deps.startMissionUseCase.execute(
+            adventure: .listening,
+            child: child,
+            difficultyEngine: deps.difficultyEngine,
+            preference: .automatic,
+            duration: 240,
+            forcedMissionType: .repeatPattern
+        )
+        XCTAssertEqual(plan.missionType, .repeatPattern)
+    }
 }
 
 // MARK: - PIN hashing

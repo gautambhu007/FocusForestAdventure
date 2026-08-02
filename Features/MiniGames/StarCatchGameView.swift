@@ -154,7 +154,7 @@ struct StarCatchGameView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ForestTheme.Gradients.magic.ignoresSafeArea()
+                ForestSceneBackground(place: .night, legibility: 0.1)
                 MagicDustView().ignoresSafeArea()
 
                 // Stars (tap fallback always works).

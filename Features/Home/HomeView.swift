@@ -30,7 +30,7 @@ struct HomeView: View {
         .task { await viewModel.onAppear() }
     }
 
-    // MARK: Top bar — stars, parent button, settings
+    // MARK: Top bar — stars, and one quiet card for the grown-ups
 
     private var topBar: some View {
         HStack {
@@ -38,29 +38,34 @@ struct HomeView: View {
 
             Spacer()
 
-            // Parent button is intentionally small & unexciting for children.
-            Button {
-                viewModel.parentButtonTapped()
-            } label: {
-                Image(systemName: "figure.and.child.holdinghands")
-                    .font(.title3)
-                    .foregroundStyle(ForestTheme.Colors.deepGreen)
-                    .padding(12)
-                    .forestCard(cornerRadius: 18)
-            }
-            .accessibilityLabel(String(localized: "Grown-ups area"))
-            .popoverTip(ParentDashboardTip())
+            // Both adult controls live in one small card, so the child's
+            // screen has a single unexciting corner instead of two.
+            HStack(spacing: 4) {
+                Button {
+                    viewModel.parentButtonTapped()
+                } label: {
+                    Image(systemName: "figure.and.child.holdinghands")
+                        .font(.title3)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(String(localized: "Grown-ups area"))
+                .popoverTip(ParentDashboardTip())
 
-            Button {
-                viewModel.settingsTapped()
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.title3)
-                    .foregroundStyle(ForestTheme.Colors.deepGreen)
-                    .padding(12)
-                    .forestCard(cornerRadius: 18)
+                Divider().frame(height: 22)
+
+                Button {
+                    viewModel.settingsTapped()
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(String(localized: "Settings"))
             }
-            .accessibilityLabel(String(localized: "Settings"))
+            .padding(.horizontal, 4)
+            .forestCard(cornerRadius: 20)
         }
     }
 
@@ -80,49 +85,86 @@ struct HomeView: View {
             .buttonStyle(SquishyButtonStyle())
             .accessibilityLabel(String(localized: "Bunny. Tap to visit your forest"))
 
-            Text(viewModel.forestLevelName)
-                .font(ForestTheme.Fonts.caption)
-                .foregroundStyle(ForestTheme.Colors.deepGreen)
-                .padding(.horizontal, 16).padding(.vertical, 6)
-                .forestCard(cornerRadius: 16)
+            // The forest gate, stated plainly: either it's open, or here's
+            // what opens it. This is the loop the whole app turns on.
+            magicForestStatus
+        }
+    }
 
-            HStack(spacing: 10) {
-                // Phase 2.2: open the Bunny assistant chat.
-                Button {
-                    viewModel.talkToBunnyTapped()
-                } label: {
-                    Label(String(localized: "Talk to Bunny"), systemImage: "bubble.left.fill")
+    /// One pill under the bunny: "Magic Forest open!" or "next: Rocking Chair".
+    private var magicForestStatus: some View {
+        Button {
+            viewModel.forestTapped()
+        } label: {
+            HStack(spacing: 8) {
+                Text(viewModel.canEnterMagicForest ? "🌟" : "🔒")
+                    .font(.title3)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(viewModel.canEnterMagicForest
+                         ? String(localized: "Magic Forest is open!")
+                         : viewModel.forestLevelName)
                         .font(ForestTheme.Fonts.caption)
                         .foregroundStyle(ForestTheme.Colors.deepGreen)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .forestCard(cornerRadius: 18)
-                }
-                .buttonStyle(SquishyButtonStyle())
-
-                // Hindi Learning hub.
-                Button {
-                    viewModel.hindiLearningTapped()
-                } label: {
-                    Label {
-                        Text(String(localized: "हिंदी"))
-                            .font(ForestTheme.Fonts.caption)
-                    } icon: {
-                        Text("📖")
+                    if viewModel.canEnterMagicForest {
+                        Text(String(localized: "4 minutes to explore"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else if let next = viewModel.nextTreasure {
+                        Text(String(localized: "Earn \(next.emoji) \(next.name) to go in"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(ForestTheme.Colors.deepGreen)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .forestCard(cornerRadius: 18)
                 }
-                .buttonStyle(SquishyButtonStyle())
-                .accessibilityLabel(String(localized: "Learn Hindi"))
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .forestCard(cornerRadius: 20)
+        }
+        .buttonStyle(SquishyButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(String(localized: "Opens your forest"))
+    }
+
+    /// The three learning hubs, sized alike so none shouts louder.
+    private var learningHubs: some View {
+        HStack(spacing: 10) {
+            hubButton("🐰", String(localized: "Bunny"),
+                      label: String(localized: "Talk to Bunny")) {
+                viewModel.talkToBunnyTapped()
+            }
+            hubButton("📖", String(localized: "हिंदी"),
+                      label: String(localized: "Learn Hindi")) {
+                viewModel.hindiLearningTapped()
+            }
+            hubButton("👂", String(localized: "Listen"),
+                      label: String(localized: "Listening Corner")) {
+                viewModel.listeningCornerTapped()
             }
         }
+    }
+
+    private func hubButton(_ emoji: String, _ title: String,
+                           label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Text(emoji).font(.title2)
+                Text(title)
+                    .font(ForestTheme.Fonts.caption)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .forestCard(cornerRadius: 20)
+        }
+        .buttonStyle(SquishyButtonStyle())
+        .accessibilityLabel(label)
     }
 
     // MARK: Bottom — goal, chest, adventure button
 
     private var bottomSection: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 14) {
+            learningHubs
+
             HStack(alignment: .bottom, spacing: 16) {
                 ForestProgressBar(progress: viewModel.goalProgress)
 

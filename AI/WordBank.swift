@@ -69,6 +69,13 @@ enum WordBank {
         emojiByWord[word] ?? "🌟"
     }
 
+    /// Same lookup as `emoji(for:)` but without the 🌟 fallback — lets other
+    /// word banks (e.g. `ListeningWordBank`) check this bank first before
+    /// falling back to their own map.
+    static func emojiIfKnown(_ word: String) -> String? {
+        emojiByWord[word]
+    }
+
     private static let emojiByWord: [String: String] = [
         // animals
         "cat": "🐱", "dog": "🐶", "fox": "🦊", "pig": "🐷", "cow": "🐮", "hen": "🐔",

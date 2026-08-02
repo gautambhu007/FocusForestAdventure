@@ -230,7 +230,7 @@ struct HindiTracingWorkbookView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .blossom, legibility: 0.24)
 
             if let section = activeSection {
                 TracingSessionView(section: section, dependencies: dependencies) {

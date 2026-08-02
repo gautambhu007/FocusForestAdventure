@@ -40,7 +40,7 @@ struct BarakhadiView: View {
 
     var body: some View {
         ZStack {
-            ForestTheme.Gradients.morningSky.ignoresSafeArea()
+            ForestSceneBackground(place: .blossom, legibility: 0.22)
 
             if isQuizzing {
                 quizView

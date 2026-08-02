@@ -53,6 +53,13 @@ protocol StoryRepository {
     func latestStory(for child: ChildProfile) throws -> StoryRecord?
 }
 
+@MainActor
+protocol CustomWordRepository {
+    func words(for child: ChildProfile) throws -> [CustomWord]
+    func add(_ text: String, for child: ChildProfile) throws
+    func delete(_ word: CustomWord) throws
+}
+
 // MARK: - Domain value types
 
 /// Aggregated performance snapshot consumed by the AI engines and parent dashboard.
@@ -227,6 +234,28 @@ final class SwiftDataAchievementRepository: AchievementRepository {
         let record = AchievementRecord(achievementID: id)
         record.child = child
         context.insert(record)
+        try context.save()
+    }
+}
+
+@MainActor
+final class SwiftDataCustomWordRepository: CustomWordRepository {
+    private let context: ModelContext
+    init(context: ModelContext) { self.context = context }
+
+    func words(for child: ChildProfile) throws -> [CustomWord] {
+        (child.customWords ?? []).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func add(_ text: String, for child: ChildProfile) throws {
+        let word = CustomWord(text: text)
+        word.child = child
+        context.insert(word)
+        try context.save()
+    }
+
+    func delete(_ word: CustomWord) throws {
+        context.delete(word)
         try context.save()
     }
 }

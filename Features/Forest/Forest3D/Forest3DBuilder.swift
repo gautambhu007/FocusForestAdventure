@@ -76,12 +76,99 @@ enum Forest3DBuilder {
             elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)]
         )
         let mat = SCNMaterial()
-        mat.diffuse.contents = ForestTextures.grass
+        // Leaf-strewn woodland floor, not bare grass — the ground is
+        // covered everywhere before a single 3D leaf is placed on top.
+        mat.diffuse.contents = ForestTextures.forestFloor
         mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
         mat.roughness.contents = 0.95
         geo.materials = [mat]
         let node = SCNNode(geometry: geo)
         node.name = "terrain"
+        return node
+    }
+
+    // MARK: Leaf litter
+
+    /// Thousands of fallen leaves lying flat on the ground across the
+    /// WHOLE world — every corner, not just clearings. They are baked
+    /// into one mesh sharing one material, so the cost is a single draw
+    /// call no matter how many leaves there are. Each leaf's four corners
+    /// sit on the terrain, so the carpet follows every slope.
+    static func leafLitter(count: Int, seed: UInt64 = 424242,
+                           scale: Float = 1) -> SCNNode {
+        var vertices: [SCNVector3] = []
+        var normals: [SCNVector3] = []
+        var uvs: [CGPoint] = []
+        var indices: [Int32] = []
+        vertices.reserveCapacity(count * 4)
+
+        var state = seed | 1
+        func rnd() -> Float {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return Float((state >> 33) & 0xFFFF) / Float(0xFFFF)
+        }
+
+        let reach = worldHalf - 2
+        for i in 0..<count {
+            let cx = (rnd() * 2 - 1) * reach
+            let cz = (rnd() * 2 - 1) * reach
+            let size = (0.16 + rnd() * 0.22) * scale
+            let angle = rnd() * 2 * .pi
+            let lift = 0.02 + rnd() * 0.05
+
+            // Half-extents rotated in the ground plane.
+            let ca = cosf(angle) * size, sa = sinf(angle) * size
+            let corners: [(Float, Float)] = [
+                (-ca + sa, -sa - ca), (ca + sa, sa - ca),
+                (-ca - sa, -sa + ca), (ca - sa, sa + ca)
+            ]
+            // Atlas cell (2×2) — four leaf colors mixed evenly.
+            let cell = Int(rnd() * 4) % 4
+            let u0 = CGFloat(cell % 2) * 0.5
+            let v0 = CGFloat(cell / 2) * 0.5
+            let cellUVs: [CGPoint] = [
+                CGPoint(x: u0, y: v0 + 0.5), CGPoint(x: u0 + 0.5, y: v0 + 0.5),
+                CGPoint(x: u0, y: v0), CGPoint(x: u0 + 0.5, y: v0)
+            ]
+
+            let base = Int32(i * 4)
+            for (c, (dx, dz)) in corners.enumerated() {
+                let x = cx + dx, z = cz + dz
+                vertices.append(SCNVector3(x, terrainHeight(x: x, z: z) + lift, z))
+                normals.append(SCNVector3(0, 1, 0))
+                uvs.append(cellUVs[c])
+            }
+            indices.append(contentsOf: [base, base + 2, base + 1,
+                                        base + 1, base + 2, base + 3])
+        }
+
+        let geo = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: vertices),
+                      SCNGeometrySource(normals: normals),
+                      SCNGeometrySource(textureCoordinates: uvs)],
+            elements: [SCNGeometryElement(indices: indices, primitiveType: .triangles)]
+        )
+        let m = SCNMaterial()
+        m.diffuse.contents = ForestTextures.leafAtlas
+        m.isDoubleSided = true
+        m.transparencyMode = .aOne
+        m.writesToDepthBuffer = false   // flat on the ground; never z-fights
+        m.roughness.contents = 1.0
+        geo.materials = [m]
+
+        let node = SCNNode(geometry: geo)
+        node.name = "leafLitter"
+        node.castsShadow = false
+        return node
+    }
+
+    /// Drifts of deeper leaves that pile up under the trees and in hollows.
+    /// Same single-mesh trick, larger and darker, laid over the base litter.
+    static func leafDrifts(count: Int) -> SCNNode {
+        let node = leafLitter(count: count, seed: 987_654_321, scale: 1.7)
+        node.name = "leafDrifts"
+        node.geometry?.firstMaterial?.multiply.contents =
+            UIColor(red: 0.74, green: 0.62, blue: 0.46, alpha: 1)
         return node
     }
 
@@ -578,9 +665,13 @@ enum Forest3DBuilder {
         let stars: [SCNNode]
         let butterflies: [SCNNode]
         let gardens: [SCNNode]
+        /// Earned animals, roamed each frame by the coordinator.
+        let critters: [Critter]
     }
 
-    static func buildOutdoor(unlocked: [ForestElement], night: Bool) -> OutdoorWorld {
+    static func buildOutdoor(unlocked: [ForestElement],
+                             treasures: [ForestTreasure] = [],
+                             night: Bool) -> OutdoorWorld {
         let scene = SCNScene()
         let root = scene.rootNode
         func has(_ e: ForestElement) -> Bool { unlocked.contains(e) }
@@ -610,21 +701,56 @@ enum Forest3DBuilder {
             obstacles.append((x, z, 0.7 * scale))
         }
 
-        // The living carpet: tall grass, ferns, and learn-about plants
-        // scattered everywhere so the meadow never feels empty.
-        let plantKinds = ["tallgrass", "tallgrass", "tallgrass", "fern",
-                          "sunflower", "tulip", "daisy", "lavender",
-                          "mushroom", "berry"]
-        let plantCount = has(.flowers) ? 150 : 70
-        for i in 0..<plantCount {
-            let x = (rnd() * 2 - 1) * (worldHalf - 10)
-            let z = (rnd() * 2 - 1) * (worldHalf - 10)
-            if abs(x) < 6 && abs(z - 58) < 8 { continue }          // spawn glade
-            if abs(x - (34 * sinf(z * 0.028) + 26)) < 5 { continue }
-            if z < -62 { continue }
-            let p = plant(kind: plantKinds[i % plantKinds.count])
-            place(p, x: x, z: z, sink: 0.06)
-            root.addChildNode(p)
+        // The forest floor: leaves everywhere, then deeper drifts on top.
+        root.addChildNode(leafLitter(count: 4200))
+        root.addChildNode(leafDrifts(count: 900))
+
+        // The living carpet. Every species in the catalog is planted —
+        // the understory (herbs, flowers, ferns, berries, mushrooms) is
+        // scattered thickly, the big fruit trees and palms more sparsely
+        // so the world stays walkable.
+        func clearOfPaths(_ x: Float, _ z: Float, margin: Float) -> Bool {
+            if abs(x) < 6 && abs(z - 58) < 8 { return false }              // spawn glade
+            if abs(x - (34 * sinf(z * 0.028) + 26)) < margin { return false } // brook
+            if z < -62 { return false }                                     // castle ridge
+            return true
+        }
+
+        let understory = PlantCatalog.understory
+        // Roughly a dozen of every small species, so the child meets the
+        // whole catalog by wandering rather than by luck.
+        let perSpecies = has(.flowers) ? 12 : 6
+        for (index, species) in understory.enumerated() {
+            for _ in 0..<perSpecies {
+                let x = (rnd() * 2 - 1) * (worldHalf - 8)
+                let z = (rnd() * 2 - 1) * (worldHalf - 8)
+                guard clearOfPaths(x, z, margin: 5) else { continue }
+                let p = plant(kind: species.key)
+                let s = 0.85 + rnd() * 0.4
+                p.scale = SCNVector3(s, s, s)
+                p.eulerAngles.y = rnd() * 2 * .pi
+                place(p, x: x, z: z, sink: 0.06)
+                root.addChildNode(p)
+            }
+            _ = index
+        }
+
+        // Orchard species: fewer, larger, and solid to walk around.
+        for species in PlantCatalog.canopy {
+            let copies = has(.trees) ? 3 : 2
+            for _ in 0..<copies {
+                let x = (rnd() * 2 - 1) * (worldHalf - 14)
+                let z = (rnd() * 2 - 1) * (worldHalf - 14)
+                guard clearOfPaths(x, z, margin: 7) else { continue }
+                if abs(x) < 12 && abs(z - 55) < 16 { continue }   // keep the glade open
+                let p = plant(kind: species.key)
+                let s = 0.9 + rnd() * 0.5
+                p.scale = SCNVector3(s, s, s)
+                p.eulerAngles.y = rnd() * 2 * .pi
+                place(p, x: x, z: z, sink: 0.15)
+                root.addChildNode(p)
+                obstacles.append((x, z, 0.5 * s))
+            }
         }
 
         var riverPath: [SCNVector3] = []
@@ -734,19 +860,25 @@ enum Forest3DBuilder {
             }
         }
 
+        // Everything the child has earned, standing where they left it.
+        let earned = placeGroundTreasures(treasures, in: root)
+        obstacles.append(contentsOf: earned.obstacles)
+
         return OutdoorWorld(scene: scene, dragonSegments: dragonSegments,
                             foxes: foxes, rabbits: rabbits, clouds: cloudsNode,
                             obstacles: obstacles, riverPath: riverPath,
                             riverMaterial: riverMaterial, fish: fishNodes,
                             stars: stars, butterflies: butterflies,
-                            gardens: gardens)
+                            gardens: gardens, critters: earned.critters)
     }
 
     // MARK: - Interiors
 
     /// A furnished room the child can walk around in. Tap the glowing
     /// door (named "exitDoor") to go back outside.
-    static func buildInterior(_ kind: InteriorKind, night: Bool) -> SCNScene {
+    static func buildInterior(_ kind: InteriorKind,
+                              treasures: [ForestTreasure] = [],
+                              night: Bool) -> SCNScene {
         let scene = SCNScene()
         let root = scene.rootNode
         scene.background.contents = ForestTextures.sky(night: night)
@@ -853,6 +985,9 @@ enum Forest3DBuilder {
         root.addChildNode(ambient)
 
         furnish(kind, root: root, roomWidth: Float(w), roomDepth: Float(d))
+        // Earned furniture goes in on top of the room's built-in fittings.
+        placeInteriorTreasures(treasures, kind: kind, in: root,
+                               roomWidth: Float(w), roomDepth: Float(d))
         return scene
     }
 

@@ -531,58 +531,16 @@ struct MeadowBackground: View {
             let w = proxy.size.width
             let h = proxy.size.height
             ZStack {
-                // Sky
-                LinearGradient(
-                    colors: night
-                        ? [Color(red: 0.06, green: 0.10, blue: 0.22),
-                           Color(red: 0.15, green: 0.22, blue: 0.36)]
-                        : [Color(red: 0.47, green: 0.76, blue: 0.95),
-                           Color(red: 0.85, green: 0.94, blue: 0.88)],
-                    startPoint: .top, endPoint: .bottom
-                )
-
-                if night {
-                    StarTwinkleField()
-                    MoonView().position(x: w * 0.78, y: h * 0.13)
-                } else {
-                    SunView().position(x: w * 0.79, y: h * 0.14)
-                }
+                // The forest itself: tree lines, leaf-covered floor,
+                // canopy overhead. Everything below is the home meadow's
+                // own foreground, painted on top of the woods.
+                ForestSceneBackground(place: night ? .night : .meadow, legibility: 0)
 
                 MeadowCloudLayer(night: night)
-
-                // Far hills — hazy, bluish (atmospheric depth)
-                RollingHill(baseline: 0.50, amplitude: 0.045, waves: 1.2, phase: 0.15)
-                    .fill(LinearGradient(
-                        colors: night
-                            ? [Color(red: 0.16, green: 0.26, blue: 0.30),
-                               Color(red: 0.11, green: 0.19, blue: 0.24)]
-                            : [Color(red: 0.66, green: 0.85, blue: 0.72),
-                               Color(red: 0.55, green: 0.76, blue: 0.64)],
-                        startPoint: .top, endPoint: .bottom))
-
-                // Mid hills + cottage
-                RollingHill(baseline: 0.60, amplitude: 0.055, waves: 0.9, phase: 0.45)
-                    .fill(LinearGradient(
-                        colors: night
-                            ? [Color(red: 0.12, green: 0.24, blue: 0.20),
-                               Color(red: 0.08, green: 0.17, blue: 0.14)]
-                            : [Color(red: 0.50, green: 0.76, blue: 0.51),
-                               Color(red: 0.38, green: 0.65, blue: 0.42)],
-                        startPoint: .top, endPoint: .bottom))
 
                 CottageView()
                     .scaleEffect(0.9)
                     .position(x: w * 0.22, y: h * 0.585)
-
-                // Near meadow — richest green
-                RollingHill(baseline: 0.735, amplitude: 0.05, waves: 0.8, phase: 0.55)
-                    .fill(LinearGradient(
-                        colors: night
-                            ? [Color(red: 0.10, green: 0.22, blue: 0.15),
-                               Color(red: 0.05, green: 0.13, blue: 0.09)]
-                            : [Color(red: 0.40, green: 0.72, blue: 0.42),
-                               Color(red: 0.24, green: 0.52, blue: 0.30)],
-                        startPoint: .top, endPoint: .bottom))
 
                 // Flowers + grass on the near meadow
                 MeadowFlower(petal: Color(red: 0.97, green: 0.62, blue: 0.72))

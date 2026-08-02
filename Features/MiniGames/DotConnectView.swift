@@ -391,13 +391,13 @@ struct DotConnectView: View {
 
     @ViewBuilder
     private var standardBackground: some View {
+        // Heavy legibility veils: the dots and lines must stay the
+        // clearest thing on screen while still standing in the forest.
         switch viewModel.theme {
-        case .classic: ForestTheme.Colors.cloudWhite
-        case .meadow: ForestTheme.Gradients.meadow
-        case .dusk: ForestTheme.Gradients.sunset
-        case .night: LinearGradient(colors: [Color(red: 0.08, green: 0.10, blue: 0.22),
-                                             Color(red: 0.16, green: 0.14, blue: 0.32)],
-                                    startPoint: .top, endPoint: .bottom)
+        case .classic: ForestSceneBackground(place: .glade, legibility: 0.55)
+        case .meadow: ForestSceneBackground(place: .meadow, legibility: 0.42)
+        case .dusk: ForestSceneBackground(place: .dusk, legibility: 0.40)
+        case .night: ForestSceneBackground(place: .night, legibility: 0.30)
         }
     }
 
