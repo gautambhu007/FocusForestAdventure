@@ -80,6 +80,12 @@ struct PuzzleGeneratorEngine: Sendable {
         case .growingSequence:  puzzle = growingSequence(spec: spec, rng: &rng)
         case .visualSudoku:     puzzle = visualSudoku(spec: spec, rng: &rng)
         case .ruleDiscovery:    puzzle = ruleDiscovery(spec: spec, rng: &rng)
+        case .hiddenObject:     puzzle = hiddenObject(spec: spec, rng: &rng)
+        case .memoryGrid:       puzzle = memoryGrid(spec: spec, rng: &rng)
+        case .maze:             puzzle = maze(spec: spec, rng: &rng)
+        case .blockRotation:    puzzle = blockRotation(spec: spec, rng: &rng)
+        case .assemble:         puzzle = assembly(spec: spec, rng: &rng)
+        case .pipeConnect:      puzzle = pipeConnect(spec: spec, rng: &rng)
         }
         guard let title else { return puzzle }
         return puzzle.retitled(title)
@@ -136,8 +142,54 @@ struct PuzzleGeneratorEngine: Sendable {
             level: level,
             difficulty: rung,
             puzzles: puzzles,
-            isBoss: isBoss,
+            mode: isBoss ? .boss : .chapter,
             chapter: chapter
+        )
+    }
+
+    /// The daily challenge as a playable run: one seeded puzzle, no story
+    /// progress, same board for everyone all day.
+    func generateDailyRun(world: PuzzleWorld, difficulty: Int, day: Date, calendar: Calendar = .current) -> PuzzleRun {
+        PuzzleRun(
+            id: UUID(),
+            world: world,
+            level: 0,
+            difficulty: difficulty.clamped(to: 1...8),
+            puzzles: [generateDailyPuzzle(world: world, difficulty: difficulty, day: day, calendar: calendar)],
+            mode: .daily,
+            chapter: nil
+        )
+    }
+
+    /// The weekend challenge: a longer mixed run across a world's chapters.
+    func generateWeekendRun<R: RandomNumberGenerator>(
+        world: PuzzleWorld,
+        difficulty: Int,
+        age: Int,
+        count: Int,
+        using rng: inout R
+    ) -> PuzzleRun {
+        let rung = difficulty.clamped(to: 1...8)
+        let pool = eligibleKinds(world: world, difficulty: rung, age: age)
+        let story = world.story
+        var puzzles: [Puzzle] = []
+        var lastKind: PuzzleKind?
+        for index in 0..<max(1, count) {
+            let stepped = (rung - 1 + (index * 2) / max(1, count)).clamped(to: 1...8)
+            let choices = pool.count > 1 ? pool.filter { $0 != lastKind } : pool
+            let kind = choices.randomElement(using: &rng) ?? .completePattern
+            lastKind = kind
+            let spec = PuzzleSpec(world: world, kind: kind, difficulty: stepped)
+            puzzles.append(generate(spec: spec, title: titleFor(kind: kind, story: story, fallback: nil), using: &rng))
+        }
+        return PuzzleRun(
+            id: UUID(),
+            world: world,
+            level: 0,
+            difficulty: rung,
+            puzzles: puzzles,
+            mode: .weekend,
+            chapter: nil
         )
     }
 
@@ -666,6 +718,408 @@ struct PuzzleGeneratorEngine: Sendable {
         return puzzle
     }
 
+    // MARK: - Search & memory kinds
+
+    /// "Find 5 acorns" — the whole board is the answer, tapped one by one.
+    /// Every found tile stays found; a wrong tap only shakes.
+    private func hiddenObject<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
+        let side = min(max(3, spec.maxSide - 1), 5)
+        let cellCount = side * side
+        // Three to five targets: enough to feel like a hunt, few enough that
+        // a four-year-old can hold the count in their head.
+        let targetCount = (2 + spec.difficulty / 2).clamped(to: 3...5)
+        let vocabulary = distinctGlyphs(count: 4, spec: spec, rng: &rng)
+        let target = vocabulary[0]
+        let clutter = Array(vocabulary.dropFirst())
+
+        var glyphs: [PuzzleGlyph] = (0..<cellCount).map { index in
+            index < targetCount ? target : (clutter.randomElement(using: &rng) ?? target)
+        }
+        glyphs.shuffle(using: &rng)
+
+        var tiles: [PuzzleTile] = []
+        var correctIDs: Set<UUID> = []
+        for glyph in glyphs {
+            let isTarget = (glyph == target)
+            let tile = PuzzleTile(glyph: glyph, isTarget: isTarget)
+            if isTarget { correctIDs.insert(tile.id) }
+            tiles.append(tile)
+        }
+
+        return Puzzle(
+            id: UUID(),
+            world: spec.world,
+            kind: spec.kind,
+            difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
+            grid: PuzzleGrid(rows: side, columns: side, tiles: tiles),
+            answerMode: .tapMany,
+            options: [],
+            correctIDs: correctIDs,
+            timeLimit: spec.timeLimit,
+            reward: spec.reward
+        )
+    }
+
+    /// Look, remember, then answer: the board is shown for a few seconds and
+    /// covered, and the child says what was in the marked cell. The peek is
+    /// generous — this trains memory, not panic.
+    private func memoryGrid<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
+        let side = min(max(2, spec.maxSide - 3), 4)
+        let cellCount = side * side
+        let vocabulary = distinctGlyphs(count: min(4, max(2, side)), spec: spec, rng: &rng)
+        var glyphs = (0..<cellCount).map { index in
+            vocabulary[index % vocabulary.count]
+        }
+        glyphs.shuffle(using: &rng)
+
+        var tiles = glyphs.map { PuzzleTile(glyph: $0) }
+        let targetIndex = Int.random(in: 0..<cellCount, using: &rng)
+        let answer = glyphs[targetIndex]
+        // The target keeps its glyph — the view hides it once the peek ends,
+        // so the board can be drawn from a single source of truth.
+        tiles[targetIndex].isTarget = true
+
+        // Longer peeks at the easier rungs.
+        let peek = TimeInterval(6 - min(spec.difficulty, 4))
+
+        var puzzle = assemble(
+            spec: spec,
+            grid: PuzzleGrid(rows: side, columns: side, tiles: tiles),
+            answer: answer,
+            decoyPool: vocabulary,
+            rng: &rng
+        )
+        puzzle.peekDuration = max(2, peek)
+        return puzzle
+    }
+
+    // MARK: - Maze
+
+    /// A route from start to treasure, around the dangers, picking up the key
+    /// on the way at the higher rungs.
+    ///
+    /// The safe route is carved *first* and hazards are only ever placed off
+    /// it, so a board can never be unsolvable — no retry loop, no chance of
+    /// shipping a maze with no way through.
+    private func maze<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
+        let side = min(max(3, spec.maxSide - 1), 5)
+        let route = carveRoute(side: side, rng: &rng)
+        let routeCells = Set(route.map { $0.row * side + $0.column })
+
+        // Hazards fill some of what the route doesn't use. The density climbs
+        // with the rung but always leaves the carved route clear.
+        let density = min(0.2 + Double(spec.difficulty) * 0.05, 0.5)
+        var roles = [PuzzleTileRole](repeating: .plain, count: side * side)
+        for index in 0..<(side * side) where !routeCells.contains(index) {
+            if Double.random(in: 0..<1, using: &rng) < density {
+                roles[index] = .hazard
+            }
+        }
+        roles[0] = .start
+        roles[side * side - 1] = .goal
+
+        // From rung 4, the treasure needs a key first — one more thing to
+        // plan around, and straight out of the story.
+        if spec.difficulty >= 4, route.count > 2 {
+            let keyStep = route[Int.random(in: 1..<(route.count - 1), using: &rng)]
+            roles[keyStep.row * side + keyStep.column] = .key
+        }
+
+        let hazardGlyph = hazardMotif(for: spec.world)
+        let tiles = roles.map { role -> PuzzleTile in
+            PuzzleTile(glyph: role == .hazard ? hazardGlyph : nil, role: role)
+        }
+        let grid = PuzzleGrid(rows: side, columns: side, tiles: tiles)
+        let goalID = tiles.last?.id ?? UUID()
+
+        return Puzzle(
+            id: UUID(),
+            world: spec.world,
+            kind: spec.kind,
+            difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
+            grid: grid,
+            answerMode: .tapPath,
+            options: [],
+            correctIDs: [goalID],
+            timeLimit: spec.timeLimit + 20,     // routes deserve thinking time
+            reward: spec.reward
+        )
+    }
+
+    /// A wandering but never self-crossing route from the top-left corner to
+    /// the bottom-right one, moving only right and down.
+    private func carveRoute<R: RandomNumberGenerator>(
+        side: Int,
+        rng: inout R
+    ) -> [(row: Int, column: Int)] {
+        var route: [(row: Int, column: Int)] = [(0, 0)]
+        var row = 0
+        var column = 0
+        while row < side - 1 || column < side - 1 {
+            let canGoDown = row < side - 1
+            let canGoRight = column < side - 1
+            let goDown: Bool
+            if canGoDown && canGoRight {
+                goDown = Bool.random(using: &rng)
+            } else {
+                goDown = canGoDown
+            }
+            if goDown { row += 1 } else { column += 1 }
+            route.append((row, column))
+        }
+        return route
+    }
+
+    /// What "danger" looks like in this world — water, fire, or ice.
+    private func hazardMotif(for world: PuzzleWorld) -> PuzzleGlyph {
+        let motif: PuzzleMotif
+        switch world {
+        case .forest:   motif = .picture("💧", name: String(localized: "water"))
+        case .pirate:   motif = .picture("🌊", name: String(localized: "waves"))
+        case .space:    motif = .picture("☄️", name: String(localized: "meteor"))
+        case .castle:   motif = .picture("🔥", name: String(localized: "fire"))
+        case .dinosaur: motif = .picture("🌋", name: String(localized: "lava"))
+        case .ocean:    motif = .picture("🦈", name: String(localized: "shark"))
+        case .ice:      motif = .picture("🕳", name: String(localized: "hole"))
+        case .volcano:  motif = .picture("🔥", name: String(localized: "fire"))
+        case .rainbow:  motif = .picture("🌑", name: String(localized: "shadow"))
+        }
+        return PuzzleGlyph(motif: motif, color: .black)
+    }
+
+    // MARK: - Block rotation
+
+    /// Show a block; find the same block turned around.
+    ///
+    /// Two things make this fair: the block is chosen to have four *different*
+    /// orientations (a symmetric block would have several right answers), and
+    /// every distractor is checked against all four turns of the original, so
+    /// a decoy can never accidentally be correct.
+    private func blockRotation<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
+        let side = spec.difficulty <= 3 ? 2 : 3
+        let color = palette(for: spec.world).randomElement(using: &rng) ?? .blue
+        let original = asymmetricPattern(side: side, difficulty: spec.difficulty, color: color, rng: &rng)
+
+        // The answer is the block, turned a quarter, half, or three quarters.
+        let turns = Int.random(in: 1...3, using: &rng)
+        var answer = original
+        for _ in 0..<turns { answer = answer.rotated() }
+
+        // Distractors: the mirror image (never a rotation of the original for
+        // an asymmetric block), and blocks with a cell moved.
+        var decoys: [PuzzlePattern] = []
+        let mirror = original.mirrored()
+        if !mirror.isRotation(of: original) { decoys.append(mirror) }
+        for _ in 0..<12 where decoys.count < spec.options - 1 {
+            let candidate = nudged(original, rng: &rng)
+            guard !candidate.isRotation(of: original),
+                  !decoys.contains(where: { $0.filled == candidate.filled && $0.rows == candidate.rows })
+            else { continue }
+            decoys.append(candidate)
+        }
+        // Last resort: fresh blocks with a different number of squares, which
+        // can't be a rotation of anything.
+        while decoys.count < spec.options - 1 {
+            var candidate = asymmetricPattern(side: side, difficulty: spec.difficulty, color: color, rng: &rng)
+            if candidate.isRotation(of: original) { candidate = nudged(candidate, rng: &rng) }
+            if !candidate.isRotation(of: original) { decoys.append(candidate) }
+        }
+
+        // The board shows the original block, drawn as filled tiles.
+        let blockGlyph = PuzzleGlyph(symbol: .square, color: color)
+        let tiles = (0..<(side * side)).map { index -> PuzzleTile in
+            let row = index / side
+            let column = index % side
+            return PuzzleTile(glyph: original.isFilled(row: row, column: column) ? blockGlyph : nil)
+        }
+
+        var options = ([answer] + decoys.prefix(spec.options - 1))
+            .map { PuzzleOption(pattern: $0) }
+        options.shuffle(using: &rng)
+        let correctID = options.first { $0.pattern == answer }?.id ?? options[0].id
+
+        return Puzzle(
+            id: UUID(),
+            world: spec.world,
+            kind: spec.kind,
+            difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
+            grid: PuzzleGrid(rows: side, columns: side, tiles: tiles),
+            answerMode: .options,
+            options: options,
+            correctIDs: [correctID],
+            timeLimit: spec.timeLimit + 10,
+            reward: spec.reward
+        )
+    }
+
+    /// A block whose four turns all look different, so exactly one option can
+    /// be the answer. Falls back to a known-asymmetric L after a few tries.
+    private func asymmetricPattern<R: RandomNumberGenerator>(
+        side: Int,
+        difficulty: Int,
+        color: ForestTheme.GameColor,
+        rng: inout R
+    ) -> PuzzlePattern {
+        let cellCount = side * side
+        let fillCount = max(2, min(cellCount - 1, side + difficulty / 3))
+        for _ in 0..<20 {
+            var cells = [Bool](repeating: false, count: cellCount)
+            for index in (0..<cellCount).shuffled(using: &rng).prefix(fillCount) {
+                cells[index] = true
+            }
+            let candidate = PuzzlePattern(rows: side, columns: side, filled: cells, color: color)
+            if candidate.hasDistinctRotations { return candidate }
+        }
+        // An L is asymmetric at any size.
+        var cells = [Bool](repeating: false, count: cellCount)
+        cells[0] = true
+        cells[side] = true
+        cells[side + 1] = true
+        return PuzzlePattern(rows: side, columns: side, filled: cells, color: color)
+    }
+
+    /// The same block with one square moved somewhere else.
+    private func nudged<R: RandomNumberGenerator>(
+        _ pattern: PuzzlePattern,
+        rng: inout R
+    ) -> PuzzlePattern {
+        var cells = pattern.filled
+        let filledIndices = cells.indices.filter { cells[$0] }
+        let emptyIndices = cells.indices.filter { !cells[$0] }
+        guard let from = filledIndices.randomElement(using: &rng),
+              let to = emptyIndices.randomElement(using: &rng)
+        else { return pattern }
+        cells[from] = false
+        cells[to] = true
+        return PuzzlePattern(rows: pattern.rows, columns: pattern.columns,
+                             filled: cells, color: pattern.color)
+    }
+
+    // MARK: - Assembly
+
+    /// Build the picture: a row of empty spaces, a bank of pieces, and a
+    /// piece to put in each. The silhouette shows what belongs where, so this
+    /// is part-to-whole matching rather than guesswork.
+    private func assembly<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
+        let slotCount = (2 + spec.difficulty / 2).clamped(to: 3...5)
+        // One spare piece from rung 4 up: now the bank has to be read, not
+        // just emptied.
+        let spares = spec.difficulty >= 4 ? 1 : 0
+        let pieces = distinctGlyphs(count: slotCount + spares, spec: spec, rng: &rng)
+
+        let wanted = Array(pieces.prefix(slotCount)).shuffled(using: &rng)
+        let tiles = wanted.map { PuzzleTile(glyph: $0, role: .slot) }
+        let options = pieces.shuffled(using: &rng).map { PuzzleOption(glyph: $0) }
+
+        // Every slot is an answer; the run view checks a tapped piece against
+        // the slot it's dropped into.
+        return Puzzle(
+            id: UUID(),
+            world: spec.world,
+            kind: spec.kind,
+            difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
+            grid: PuzzleGrid(rows: 1, columns: slotCount, tiles: tiles),
+            answerMode: .assemble,
+            options: options,
+            correctIDs: Set(tiles.map(\.id)),
+            timeLimit: spec.timeLimit + 15,
+            reward: spec.reward
+        )
+    }
+
+    // MARK: - Pipes
+
+    /// Turn the pipes until the water runs from the tap to the far end.
+    ///
+    /// Built the same way round as the maze: the working pipeline is laid
+    /// down *first*, then every tile is turned a random amount. Solvability
+    /// is therefore guaranteed — turning each tile back is always a solution.
+    /// The only thing checked afterwards is that the scramble didn't leave
+    /// the puzzle already solved.
+    private func pipeConnect<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
+        let side = min(max(3, spec.maxSide - 2), 4)
+        let route = carveRoute(side: side, rng: &rng)
+
+        // Lay the pipeline: each route cell opens towards its neighbours on
+        // the route, so the ends are single spouts and the rest join up.
+        var connections = [PipeConnections](repeating: [], count: side * side)
+        for (position, cell) in route.enumerated() {
+            let index = cell.row * side + cell.column
+            if position > 0 {
+                connections[index].insert(direction(from: cell, to: route[position - 1]))
+            }
+            if position < route.count - 1 {
+                connections[index].insert(direction(from: cell, to: route[position + 1]))
+            }
+        }
+
+        // Off-route cells get loose pipe so the board doesn't advertise the
+        // answer by being empty everywhere else.
+        let clutter: [PipeConnections] = [[.north, .south], [.north, .east], [.east, .south]]
+        let routeCells = Set(route.map { $0.row * side + $0.column })
+        for index in 0..<(side * side) where !routeCells.contains(index) {
+            connections[index] = clutter.randomElement(using: &rng) ?? [.north, .south]
+        }
+
+        func build(_ connections: [PipeConnections]) -> PuzzleGrid {
+            let tiles = connections.enumerated().map { index, pipe -> PuzzleTile in
+                let role: PuzzleTileRole = index == 0
+                    ? .start
+                    : (index == side * side - 1 ? .goal : .plain)
+                return PuzzleTile(role: role, pipe: pipe)
+            }
+            return PuzzleGrid(rows: side, columns: side, tiles: tiles)
+        }
+
+        // Scramble. Straight pipes look the same after a half turn, so a
+        // "turned" tile isn't always a changed tile — hence the check that
+        // the board didn't come out already solved.
+        var scrambled = connections
+        for attempt in 0..<8 {
+            scrambled = connections.map { pipe in
+                var turned = pipe
+                let turns = attempt == 0
+                    ? Int.random(in: 1...3, using: &rng)   // never leave a tile untouched
+                    : Int.random(in: 0...3, using: &rng)
+                for _ in 0..<turns { turned = turned.rotated() }
+                return turned
+            }
+            if !PipeRules.isConnected(build(scrambled)) { break }
+        }
+
+        let grid = build(scrambled)
+        let goalID = grid.tiles.last?.id ?? UUID()
+
+        return Puzzle(
+            id: UUID(),
+            world: spec.world,
+            kind: spec.kind,
+            difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
+            grid: grid,
+            answerMode: .rotateTiles,
+            options: [],
+            correctIDs: [goalID],
+            timeLimit: spec.timeLimit + 25,     // fiddling deserves time
+            reward: spec.reward
+        )
+    }
+
+    /// Which side of `cell` faces `other`. They must be neighbours.
+    private func direction(
+        from cell: (row: Int, column: Int),
+        to other: (row: Int, column: Int)
+    ) -> PipeConnections {
+        if other.row < cell.row { return .north }
+        if other.row > cell.row { return .south }
+        if other.column > cell.column { return .east }
+        return .west
+    }
+
     // MARK: - Shared helpers
 
     /// Build the option row: the answer plus distinct decoys, shuffled.
@@ -808,10 +1262,11 @@ extension Puzzle {
             grid: grid,
             answerMode: answerMode,
             options: options,
-            correctID: correctID,
+            correctIDs: correctIDs,
             timeLimit: timeLimit,
             reward: reward,
-            legend: legend
+            legend: legend,
+            peekDuration: peekDuration
         )
     }
 }

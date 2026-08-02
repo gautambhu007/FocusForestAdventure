@@ -253,17 +253,29 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
     case hiddenObject
     /// The board is shown, then covered. What was in the marked cell?
     case memoryGrid
+    /// Walk a safe route from start to goal, collecting the key on the way.
+    case maze
+    /// Which block is the same one, turned around?
+    case blockRotation
+    /// Put every piece in its right place to build the picture.
+    case assemble
+    /// Turn the pipes until the water can flow from end to end.
+    case pipeConnect
 
     var skill: PuzzleSkill {
         switch self {
         case .missingColor, .matchTheShape, .sameOrDifferent: .matchColors
         case .completePattern, .continueSequence, .oddOneOut: .completePattern
-        case .mirrorPuzzle, .buildSymmetry: .mirrorSymmetry
-        case .rotateShape: .rotation
+        // Assembly is part-to-whole spatial work, which is the same rung as
+        // symmetry — and feeds the same parent-facing skills.
+        case .mirrorPuzzle, .buildSymmetry, .assemble: .mirrorSymmetry
+        case .rotateShape, .blockRotation: .rotation
         case .colorLogic, .missingTile, .shapeCount: .multiRule
         case .numberShape, .patternMatrix, .memoryGrid: .memoryLogic
         case .ravenMatrix, .growingSequence, .hiddenObject: .hiddenPattern
-        case .visualSudoku, .ruleDiscovery: .mixedIQ
+        case .visualSudoku, .ruleDiscovery, .maze: .mixedIQ
+        // Turning pipes until a route joins up is rotation *and* planning.
+        case .pipeConnect: .rotation
         }
     }
 
@@ -298,6 +310,12 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
         case .growingSequence: String(localized: "What comes next in the row?")
         case .visualSudoku: String(localized: "No repeats in a row or column!")
         case .ruleDiscovery: String(localized: "Figure out the secret rule!")
+        case .hiddenObject: String(localized: "Find them all!")
+        case .memoryGrid: String(localized: "What was hiding here?")
+        case .maze: String(localized: "Find a safe way through!")
+        case .blockRotation: String(localized: "Which one is the same, turned around?")
+        case .assemble: String(localized: "Put every piece in its place!")
+        case .pipeConnect: String(localized: "Turn the pipes to join them up!")
         }
     }
 
@@ -331,6 +349,18 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
             String(localized: "A color can only appear once in each line.")
         case .ruleDiscovery:
             String(localized: "What happens when they swap places?")
+        case .hiddenObject:
+            String(localized: "Look row by row, and don't rush.")
+        case .memoryGrid:
+            String(localized: "Picture the board in your head.")
+        case .maze:
+            String(localized: "Trace the way with your finger first.")
+        case .blockRotation:
+            String(localized: "Turn your head — or turn the picture in your mind!")
+        case .assemble:
+            String(localized: "Tap a piece, then tap where it goes.")
+        case .pipeConnect:
+            String(localized: "Start at the tap and follow the water along.")
         }
     }
 }
@@ -422,6 +452,147 @@ struct PuzzleGlyph: Hashable, Sendable {
 
 // MARK: - Board
 
+/// What a cell *is*. Mazes use start/goal/hazard/key; assembly puzzles use
+/// `.slot`. Every other kind uses `.plain`.
+enum PuzzleTileRole: String, Codable, Sendable, Hashable {
+    case plain, start, goal, hazard, key, slot
+
+    /// Hazards can never be stepped on — the rest can.
+    var isWalkable: Bool { self != .hazard }
+
+    var localizedName: String {
+        switch self {
+        case .plain: String(localized: "path")
+        case .start: String(localized: "start")
+        case .goal: String(localized: "treasure")
+        case .hazard: String(localized: "danger")
+        case .key: String(localized: "key")
+        case .slot: String(localized: "empty space")
+        }
+    }
+}
+
+/// Which sides of a cell a pipe opens onto.
+struct PipeConnections: OptionSet, Hashable, Sendable {
+    let rawValue: Int
+
+    static let north = PipeConnections(rawValue: 1 << 0)
+    static let east  = PipeConnections(rawValue: 1 << 1)
+    static let south = PipeConnections(rawValue: 1 << 2)
+    static let west  = PipeConnections(rawValue: 1 << 3)
+
+    static let all: [PipeConnections] = [.north, .east, .south, .west]
+
+    /// A quarter turn clockwise: north becomes east, and so on around.
+    func rotated() -> PipeConnections {
+        var turned: PipeConnections = []
+        if contains(.north) { turned.insert(.east) }
+        if contains(.east)  { turned.insert(.south) }
+        if contains(.south) { turned.insert(.west) }
+        if contains(.west)  { turned.insert(.north) }
+        return turned
+    }
+
+    /// The side facing back at you from the neighbour on this side.
+    var opposite: PipeConnections {
+        var flipped: PipeConnections = []
+        if contains(.north) { flipped.insert(.south) }
+        if contains(.south) { flipped.insert(.north) }
+        if contains(.east)  { flipped.insert(.west) }
+        if contains(.west)  { flipped.insert(.east) }
+        return flipped
+    }
+
+    var armCount: Int { PipeConnections.all.filter { contains($0) }.count }
+
+    /// A straight pipe looks identical after a half turn, which matters when
+    /// deciding whether a scramble actually changed anything.
+    var isStraight: Bool {
+        self == [.north, .south] || self == [.east, .west]
+    }
+
+    var localizedName: String {
+        switch armCount {
+        case 0: String(localized: "blank tile")
+        case 1: String(localized: "pipe end")
+        case 2: isStraight ? String(localized: "straight pipe") : String(localized: "corner pipe")
+        case 3: String(localized: "T pipe")
+        default: String(localized: "cross pipe")
+        }
+    }
+}
+
+/// A small block of filled and empty cells — the thing a block-rotation
+/// puzzle asks the child to turn around in their head.
+struct PuzzlePattern: Hashable, Sendable {
+    var rows: Int
+    var columns: Int
+    /// Row-major, `rows * columns` entries.
+    var filled: [Bool]
+    var color: ForestTheme.GameColor
+
+    func isFilled(row: Int, column: Int) -> Bool {
+        guard row >= 0, row < rows, column >= 0, column < columns else { return false }
+        return filled[row * columns + column]
+    }
+
+    /// A quarter turn clockwise. Note rows and columns swap.
+    func rotated() -> PuzzlePattern {
+        var turned = [Bool](repeating: false, count: filled.count)
+        for row in 0..<rows {
+            for column in 0..<columns {
+                // (row, column) → (column, rows - 1 - row) in the new grid,
+                // whose width is `rows`.
+                let newRow = column
+                let newColumn = rows - 1 - row
+                turned[newRow * rows + newColumn] = isFilled(row: row, column: column)
+            }
+        }
+        return PuzzlePattern(rows: columns, columns: rows, filled: turned, color: color)
+    }
+
+    /// All four orientations, starting with this one.
+    var rotations: [PuzzlePattern] {
+        var result = [self]
+        var current = self
+        for _ in 0..<3 {
+            current = current.rotated()
+            result.append(current)
+        }
+        return result
+    }
+
+    /// Flipped left-to-right. A mirror is *not* a rotation, which is exactly
+    /// what makes it a good distractor.
+    func mirrored() -> PuzzlePattern {
+        var flipped = [Bool](repeating: false, count: filled.count)
+        for row in 0..<rows {
+            for column in 0..<columns {
+                flipped[row * columns + (columns - 1 - column)] = isFilled(row: row, column: column)
+            }
+        }
+        return PuzzlePattern(rows: rows, columns: columns, filled: flipped, color: color)
+    }
+
+    /// Is `other` this block, just turned? Compares the cells, ignoring color.
+    func isRotation(of other: PuzzlePattern) -> Bool {
+        other.rotations.contains { $0.rows == rows && $0.columns == columns && $0.filled == filled }
+    }
+
+    /// A block with no rotational symmetry — one whose four turns all look
+    /// different. Symmetric blocks would give a puzzle several right answers.
+    var hasDistinctRotations: Bool {
+        let shapes = rotations.map { [$0.rows, $0.columns] + $0.filled.map { $0 ? 1 : 0 } }
+        return Set(shapes).count == 4
+    }
+
+    var filledCount: Int { filled.filter { $0 }.count }
+
+    var accessibilityLabel: String {
+        String(localized: "a block of \(filledCount) squares")
+    }
+}
+
 struct PuzzleTile: Hashable, Sendable, Identifiable {
     let id: UUID
     var glyph: PuzzleGlyph?
@@ -429,12 +600,24 @@ struct PuzzleTile: Hashable, Sendable, Identifiable {
     var text: String?
     /// The gap the answer fills. At most one tile per puzzle has this.
     var isTarget: Bool
+    var role: PuzzleTileRole
+    /// Pipe puzzles: which sides this tile currently opens onto.
+    var pipe: PipeConnections?
 
-    init(id: UUID = UUID(), glyph: PuzzleGlyph? = nil, text: String? = nil, isTarget: Bool = false) {
+    init(
+        id: UUID = UUID(),
+        glyph: PuzzleGlyph? = nil,
+        text: String? = nil,
+        isTarget: Bool = false,
+        role: PuzzleTileRole = .plain,
+        pipe: PipeConnections? = nil
+    ) {
         self.id = id
         self.glyph = glyph
         self.text = text
         self.isTarget = isTarget
+        self.role = role
+        self.pipe = pipe
     }
 
     static func blank(isTarget: Bool = false) -> PuzzleTile {
@@ -444,6 +627,7 @@ struct PuzzleTile: Hashable, Sendable, Identifiable {
     var isEmpty: Bool { glyph == nil && text == nil }
 
     var accessibilityLabel: String {
+        if role != .plain { return role.localizedName }
         if let glyph { return glyph.accessibilityLabel }
         if let text { return text }
         return isTarget ? String(localized: "empty space to fill") : String(localized: "empty")
@@ -468,14 +652,24 @@ struct PuzzleOption: Hashable, Sendable, Identifiable {
     let id: UUID
     var glyph: PuzzleGlyph?
     var text: String?
+    /// Block-rotation puzzles answer with a little block, not a glyph.
+    var pattern: PuzzlePattern?
 
-    init(id: UUID = UUID(), glyph: PuzzleGlyph? = nil, text: String? = nil) {
+    init(
+        id: UUID = UUID(),
+        glyph: PuzzleGlyph? = nil,
+        text: String? = nil,
+        pattern: PuzzlePattern? = nil
+    ) {
         self.id = id
         self.glyph = glyph
         self.text = text
+        self.pattern = pattern
     }
 
-    var accessibilityLabel: String { glyph?.accessibilityLabel ?? text ?? "" }
+    var accessibilityLabel: String {
+        glyph?.accessibilityLabel ?? text ?? pattern?.accessibilityLabel ?? ""
+    }
 }
 
 /// A worked example shown above the board: "🔺 ⭕ = ⭐".
@@ -499,8 +693,149 @@ struct PuzzleLegendEntry: Hashable, Sendable, Identifiable {
 // MARK: - Puzzle
 
 enum PuzzleAnswerMode: String, Codable, Sendable, Hashable {
+    /// Tap one of the option chips under the board.
     case options
+    /// Tap the one tile on the board that answers the question.
     case tapTile
+    /// Tap *every* matching tile — the puzzle ends when they're all found.
+    case tapMany
+    /// Walk a route: each tap must neighbour the last one.
+    case tapPath
+    /// Pick a piece, then tap the space it belongs in.
+    case assemble
+    /// Tap tiles to turn them until something lines up.
+    case rotateTiles
+}
+
+/// The rules of a pipe puzzle, kept pure so they're tested without a view.
+/// Water flows between neighbours only when *both* sides open onto each
+/// other — one open end facing a wall is a leak, not a join.
+enum PipeRules {
+
+    /// Turn one tile a quarter clockwise.
+    static func rotating(_ grid: PuzzleGrid, tileID: UUID) -> PuzzleGrid {
+        var updated = grid
+        guard let index = updated.tiles.firstIndex(where: { $0.id == tileID }),
+              let pipe = updated.tiles[index].pipe
+        else { return grid }
+        updated.tiles[index].pipe = pipe.rotated()
+        return updated
+    }
+
+    /// Every cell the water reaches from the source, following joined pipes.
+    static func flooded(_ grid: PuzzleGrid) -> Set<UUID> {
+        guard let startIndex = grid.tiles.firstIndex(where: { $0.role == .start }) else { return [] }
+        var reached: Set<UUID> = [grid.tiles[startIndex].id]
+        var frontier = [startIndex]
+
+        while let index = frontier.popLast() {
+            guard let pipe = grid.tiles[index].pipe else { continue }
+            let row = index / grid.columns
+            let column = index % grid.columns
+
+            for side in PipeConnections.all where pipe.contains(side) {
+                let (nextRow, nextColumn) = step(from: (row, column), towards: side)
+                guard nextRow >= 0, nextRow < grid.rows,
+                      nextColumn >= 0, nextColumn < grid.columns
+                else { continue }
+                let neighbourIndex = nextRow * grid.columns + nextColumn
+                let neighbour = grid.tiles[neighbourIndex]
+                // The neighbour has to open back towards us.
+                guard let neighbourPipe = neighbour.pipe,
+                      neighbourPipe.contains(side.opposite),
+                      !reached.contains(neighbour.id)
+                else { continue }
+                reached.insert(neighbour.id)
+                frontier.append(neighbourIndex)
+            }
+        }
+        return reached
+    }
+
+    /// Has the water made it all the way to the far end?
+    static func isConnected(_ grid: PuzzleGrid) -> Bool {
+        guard let goal = grid.tiles.first(where: { $0.role == .goal }) else { return false }
+        return flooded(grid).contains(goal.id)
+    }
+
+    private static func step(
+        from cell: (row: Int, column: Int),
+        towards side: PipeConnections
+    ) -> (Int, Int) {
+        switch side {
+        case .north: (cell.row - 1, cell.column)
+        case .south: (cell.row + 1, cell.column)
+        case .east:  (cell.row, cell.column + 1)
+        case .west:  (cell.row, cell.column - 1)
+        default:     (cell.row, cell.column)
+        }
+    }
+}
+
+/// The rules of a maze, kept out of the view so they can be tested without
+/// one. A route is legal when every step neighbours the last, never lands on
+/// a hazard, and never doubles back onto itself.
+enum MazeRules {
+
+    /// Row/column of a tile in a grid, or nil if it isn't there.
+    static func position(of id: UUID, in grid: PuzzleGrid) -> (row: Int, column: Int)? {
+        guard let index = grid.tiles.firstIndex(where: { $0.id == id }) else { return nil }
+        return (index / grid.columns, index % grid.columns)
+    }
+
+    static func areNeighbours(_ first: UUID, _ second: UUID, in grid: PuzzleGrid) -> Bool {
+        guard let a = position(of: first, in: grid), let b = position(of: second, in: grid) else {
+            return false
+        }
+        return abs(a.row - b.row) + abs(a.column - b.column) == 1
+    }
+
+    /// Can this tile be the next step after `path`?
+    static func canStep(to id: UUID, path: [UUID], in grid: PuzzleGrid) -> Bool {
+        guard let tile = grid.tiles.first(where: { $0.id == id }), tile.role.isWalkable else {
+            return false
+        }
+        guard !path.contains(id) else { return false }
+        guard let last = path.last else { return tile.role == .start }
+        return areNeighbours(last, id, in: grid)
+    }
+
+    /// A route is finished when it stands on the goal, having picked up the
+    /// key first if there is one.
+    static func isComplete(path: [UUID], in grid: PuzzleGrid) -> Bool {
+        guard let last = path.last,
+              grid.tiles.first(where: { $0.id == last })?.role == .goal
+        else { return false }
+        let keys = grid.tiles.filter { $0.role == .key }.map(\.id)
+        return keys.allSatisfy { path.contains($0) }
+    }
+
+    /// Is there any legal route left from here? Used to tell a child kindly
+    /// that they've boxed themselves in.
+    static func hasRouteRemaining(path: [UUID], in grid: PuzzleGrid) -> Bool {
+        guard let last = path.last else { return true }
+        guard let start = position(of: last, in: grid) else { return false }
+
+        var visited = Set(path)
+        var frontier = [start]
+        var reachable: Set<UUID> = []
+        while let cell = frontier.popLast() {
+            for (row, column) in [(cell.0 - 1, cell.1), (cell.0 + 1, cell.1),
+                                  (cell.0, cell.1 - 1), (cell.0, cell.1 + 1)] {
+                guard let tile = grid.tile(row: row, column: column),
+                      tile.role.isWalkable,
+                      !visited.contains(tile.id)
+                else { continue }
+                visited.insert(tile.id)
+                reachable.insert(tile.id)
+                frontier.append((row, column))
+            }
+        }
+        let needed = grid.tiles.filter { $0.role == .goal || $0.role == .key }
+            .map(\.id)
+            .filter { !path.contains($0) }
+        return needed.allSatisfy { reachable.contains($0) }
+    }
 }
 
 struct Puzzle: Hashable, Sendable, Identifiable {
@@ -514,15 +849,81 @@ struct Puzzle: Hashable, Sendable, Identifiable {
     let grid: PuzzleGrid
     let answerMode: PuzzleAnswerMode
     let options: [PuzzleOption]
-    /// Option id, or tile id in `.tapTile` mode.
-    let correctID: UUID
+    /// Every id that counts as correct: one option, one tile, or (in
+    /// `.tapMany`) all the tiles that must be found.
+    let correctIDs: Set<UUID>
     /// Soft cap — the clock only *adds* the speed star, it never ends a puzzle.
     let timeLimit: TimeInterval
     /// Magic gems for a first-try solve.
     let reward: Int
     var legend: [PuzzleLegendEntry] = []
+    /// Memory puzzles show the board for this long, then cover it.
+    var peekDuration: TimeInterval?
 
-    var prompt: String { kind.localizedPrompt }
+    init(
+        id: UUID,
+        world: PuzzleWorld,
+        kind: PuzzleKind,
+        difficulty: Int,
+        title: String,
+        grid: PuzzleGrid,
+        answerMode: PuzzleAnswerMode,
+        options: [PuzzleOption],
+        correctIDs: Set<UUID>,
+        timeLimit: TimeInterval,
+        reward: Int,
+        legend: [PuzzleLegendEntry] = [],
+        peekDuration: TimeInterval? = nil
+    ) {
+        self.id = id
+        self.world = world
+        self.kind = kind
+        self.difficulty = difficulty
+        self.title = title
+        self.grid = grid
+        self.answerMode = answerMode
+        self.options = options
+        self.correctIDs = correctIDs
+        self.timeLimit = timeLimit
+        self.reward = reward
+        self.legend = legend
+        self.peekDuration = peekDuration
+    }
+
+    /// Convenience for the single-answer kinds, which are most of them.
+    init(
+        id: UUID,
+        world: PuzzleWorld,
+        kind: PuzzleKind,
+        difficulty: Int,
+        title: String,
+        grid: PuzzleGrid,
+        answerMode: PuzzleAnswerMode,
+        options: [PuzzleOption],
+        correctID: UUID,
+        timeLimit: TimeInterval,
+        reward: Int,
+        legend: [PuzzleLegendEntry] = [],
+        peekDuration: TimeInterval? = nil
+    ) {
+        self.init(
+            id: id, world: world, kind: kind, difficulty: difficulty, title: title,
+            grid: grid, answerMode: answerMode, options: options,
+            correctIDs: [correctID], timeLimit: timeLimit, reward: reward,
+            legend: legend, peekDuration: peekDuration
+        )
+    }
+
+    /// The single expected answer. Meaningless for `.tapMany`.
+    var correctID: UUID { correctIDs.first ?? id }
+
+    /// How many taps solve this puzzle.
+    var targetCount: Int { correctIDs.count }
+
+    var prompt: String {
+        guard kind == .hiddenObject else { return kind.localizedPrompt }
+        return String(localized: "Find all \(correctIDs.count)!")
+    }
     var hint: String { kind.localizedHint }
     var skill: PuzzleSkill { kind.skill }
 
@@ -586,17 +987,29 @@ struct PuzzleAttempt: Hashable, Sendable {
     var timeLimit: TimeInterval
 }
 
-/// One playthrough of a level: a handful of puzzles, then a celebration.
+/// Why this run is being played. Only story runs advance the campaign —
+/// the daily and weekend challenges pay gems and practise skills without
+/// moving the map, so a child can't accidentally skip the story.
+enum PuzzleRunMode: String, Codable, Sendable, Hashable {
+    case chapter, boss, daily, weekend
+
+    var advancesStory: Bool { self == .chapter || self == .boss }
+}
+
+/// One playthrough: a handful of puzzles, then a celebration.
 struct PuzzleRun: Hashable, Sendable, Identifiable {
     let id: UUID
     let world: PuzzleWorld
+    /// 0 for runs that don't advance the campaign.
     let level: Int
     let difficulty: Int
     let puzzles: [Puzzle]
-    /// Boss runs are longer, harder, and pay a crystal.
-    let isBoss: Bool
+    let mode: PuzzleRunMode
     /// The chapter being played, for the story card before the first puzzle.
     let chapter: StoryChapter?
+
+    /// Boss runs are longer, harder, and pay a crystal.
+    var isBoss: Bool { mode == .boss }
 
     static func == (lhs: PuzzleRun, rhs: PuzzleRun) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }

@@ -208,16 +208,40 @@ struct StartPuzzleRunUseCase {
         )
     }
 
-    /// Today's challenge — the same board for the whole day, drawn from a
-    /// world the child has already opened.
-    func dailyPuzzle(child: ChildProfile, age: Int, day: Date = .now) throws -> Puzzle? {
+    /// Today's challenge — the same board for the whole day, drawn from the
+    /// furthest world the child has opened.
+    func dailyRun(child: ChildProfile, age: Int, day: Date = .now) throws -> PuzzleRun? {
+        guard let (world, difficulty) = try latestWorld(child: child, age: age) else { return nil }
+        return generator.generateDailyRun(world: world, difficulty: difficulty, day: day)
+    }
+
+    /// The weekend challenge: longer, mixed, and worth double gems.
+    func weekendRun(
+        child: ChildProfile,
+        age: Int,
+        dailyEngine: PuzzleDailyEngine = PuzzleDailyEngine()
+    ) throws -> PuzzleRun? {
+        guard let (world, difficulty) = try latestWorld(child: child, age: age) else { return nil }
+        var rng = SystemRandomNumberGenerator()
+        return generator.generateWeekendRun(
+            world: world,
+            difficulty: difficulty,
+            age: age,
+            count: dailyEngine.weekendChallengeCount(difficulty: difficulty),
+            using: &rng
+        )
+    }
+
+    /// The furthest world the child has opened, with the rung to play it at.
+    private func latestWorld(child: ChildProfile, age: Int) throws -> (PuzzleWorld, Int)? {
         let snapshot = try puzzleRepository.snapshot(for: child)
-        let unlocked = progressionEngine.unlockedWorlds(age: age, snapshot: snapshot)
-        guard let world = unlocked.last else { return nil }
+        guard let world = progressionEngine.unlockedWorlds(age: age, snapshot: snapshot).last else {
+            return nil
+        }
         let difficulty = snapshot.completed(world) > 0
             ? snapshot.rung(world)
             : progressionEngine.startingDifficulty(age: age, world: world)
-        return generator.generateDailyPuzzle(world: world, difficulty: difficulty, day: day)
+        return (world, difficulty)
     }
 }
 
@@ -254,13 +278,18 @@ struct CompletePuzzleRunUseCase {
         preference: DifficultyPreference
     ) throws -> PuzzleRunCompletion {
         let before = try puzzleRepository.snapshot(for: child)
-        let result = progressionEngine.makeResult(
+        var result = progressionEngine.makeResult(
             world: run.world,
             level: run.level,
             difficulty: run.difficulty,
             attempts: attempts,
             isBoss: run.isBoss
         )
+        // Weekend challenges pay double; neither they nor the daily puzzle
+        // advance the story (their level is 0, so progress can't move).
+        if run.mode == .weekend {
+            result.gems *= PuzzleDailyEngine().weekendBonusMultiplier()
+        }
         let nextDifficulty = progressionEngine.nextDifficulty(
             current: run.difficulty,
             recentResults: [result] + before.recentResults.filter { $0.world == run.world },

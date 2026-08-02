@@ -19,6 +19,14 @@ final class PuzzleWorldsViewModel {
     private(set) var isStarting = false
     /// Told once, on the child's first visit.
     private(set) var showsPrologue = false
+    private(set) var today = DailyActivities(
+        streakDays: 0, hasDailyPuzzle: false, dailyPuzzleDone: false,
+        chestAvailable: false, chestOpened: false, isWeekend: false,
+        weekendChallengeDone: false,
+        todaysReward: PuzzleDailyEngine.ladder[0], nextReward: nil
+    )
+    /// Gems from the last chest, shown briefly.
+    private(set) var chestPrize: Int?
 
     private static let prologueSeenKey = "puzzle.prologueSeen"
 
@@ -65,6 +73,85 @@ final class PuzzleWorldsViewModel {
             assertionFailure("Puzzle snapshot failed: \(error)")
             snapshot = PuzzleProgressSnapshot()
         }
+        refreshToday()
+    }
+
+    private func refreshToday() {
+        today = dependencies.puzzleDailyEngine.activities(
+            streakDays: DailyStreak.current(),
+            hasUnlockedWorld: !dependencies.puzzleProgressionEngine
+                .unlockedWorlds(age: age, snapshot: snapshot).isEmpty,
+            dailyPuzzleDone: DailyPuzzleLog.isDone(DailyPuzzleLog.dailyPuzzle),
+            chestOpened: DailyPuzzleLog.isDone(DailyPuzzleLog.chest),
+            weekendChallengeDone: DailyPuzzleLog.isDone(DailyPuzzleLog.weekend),
+            date: .now
+        )
+    }
+
+    var companionEmoji: String? { snapshot.companion?.emoji }
+
+    // MARK: Daily activities
+
+    func dailyPuzzleTapped() async {
+        guard !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        do {
+            let child = try dependencies.childRepository.activeChild()
+            guard let run = try dependencies.startPuzzleRunUseCase.dailyRun(child: child, age: age) else { return }
+            DailyPuzzleLog.markDone(DailyPuzzleLog.dailyPuzzle)
+            dependencies.appState.navigationPath.append(.puzzleRun(run))
+        } catch {
+            assertionFailure("Daily puzzle failed: \(error)")
+        }
+    }
+
+    func weekendChallengeTapped() async {
+        guard !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        do {
+            let child = try dependencies.childRepository.activeChild()
+            guard let run = try dependencies.startPuzzleRunUseCase.weekendRun(child: child, age: age) else { return }
+            DailyPuzzleLog.markDone(DailyPuzzleLog.weekend)
+            dependencies.appState.navigationPath.append(.puzzleRun(run))
+        } catch {
+            assertionFailure("Weekend challenge failed: \(error)")
+        }
+    }
+
+    /// The chest is opened, not won — it always contains something.
+    func chestTapped() async {
+        guard today.chestAvailable else { return }
+        do {
+            let child = try dependencies.childRepository.activeChild()
+            let prize = dependencies.puzzleDailyEngine.chestReward(
+                day: .now, streakDays: today.streakDays
+            )
+            try dependencies.puzzleRepository.awardGems(prize, to: child)
+            DailyPuzzleLog.markDone(DailyPuzzleLog.chest)
+            dependencies.hapticsService.playSuccess()
+            dependencies.soundEngine.play(.chestOpen)
+            refresh()
+            chestPrize = prize
+            await dependencies.speechService.speak(
+                String(localized: "The chest had \(prize) gems inside!")
+            )
+            try? await Task.sleep(for: .seconds(1.8))
+            chestPrize = nil
+        } catch {
+            assertionFailure("Chest failed: \(error)")
+        }
+    }
+
+    func collectionTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        dependencies.appState.navigationPath.append(.puzzleCollection)
     }
 
     func isUnlocked(_ world: PuzzleWorld) -> Bool {
@@ -137,6 +224,7 @@ struct PuzzleWorldsView: View {
 
                     crystalShelf
                     wallet
+                    todayCard
 
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(PuzzleWorld.allCases, id: \.self) { world in
@@ -154,6 +242,9 @@ struct PuzzleWorldsView: View {
 
             if viewModel.showsPrologue {
                 prologueOverlay
+            }
+            if let prize = viewModel.chestPrize {
+                chestCelebration(prize)
             }
         }
         .navigationTitle(String(localized: "Puzzle Adventure"))
@@ -212,6 +303,152 @@ struct PuzzleWorldsView: View {
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .forestCard(cornerRadius: 20)
+    }
+
+    /// Today: the daily puzzle, the chest it opens, the streak, and (at the
+    /// weekend) the long challenge. Nothing here expires with a timer — a
+    /// missed day costs the streak bonus, never anything already earned.
+    private var todayCard: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Label(String(localized: "Today"), systemImage: "sun.max.fill")
+                    .font(ForestTheme.Fonts.heading)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                Spacer()
+                if viewModel.today.streakDays > 0 {
+                    Text(String(localized: "🔥 \(viewModel.today.streakDays) day streak"))
+                        .font(ForestTheme.Fonts.caption)
+                        .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(0.8))
+                }
+            }
+
+            streakLadder
+
+            HStack(spacing: 10) {
+                if viewModel.today.hasDailyPuzzle {
+                    todayButton(
+                        emoji: "🌞",
+                        title: viewModel.today.dailyPuzzleDone
+                            ? String(localized: "Played")
+                            : String(localized: "Daily Puzzle"),
+                        done: viewModel.today.dailyPuzzleDone
+                    ) {
+                        Task { await viewModel.dailyPuzzleTapped() }
+                    }
+                }
+
+                todayButton(
+                    emoji: "🎁",
+                    title: viewModel.today.chestOpened
+                        ? String(localized: "Opened")
+                        : String(localized: "Mystery Chest"),
+                    done: viewModel.today.chestOpened,
+                    dimmed: !viewModel.today.chestAvailable && !viewModel.today.chestOpened
+                ) {
+                    Task { await viewModel.chestTapped() }
+                }
+
+                todayButton(emoji: "🎒", title: String(localized: "Collection"), done: false) {
+                    viewModel.collectionTapped()
+                }
+            }
+
+            if viewModel.today.isWeekend {
+                Button {
+                    Task { await viewModel.weekendChallengeTapped() }
+                } label: {
+                    Label(
+                        viewModel.today.weekendChallengeDone
+                            ? String(localized: "Weekend Challenge done — great work!")
+                            : String(localized: "⭐️ Weekend Challenge — double gems!"),
+                        systemImage: "star.circle.fill"
+                    )
+                    .font(ForestTheme.Fonts.caption)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(ForestTheme.Colors.sunshine.opacity(0.35))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(SquishyButtonStyle())
+                .disabled(viewModel.today.weekendChallengeDone)
+            }
+
+            if !viewModel.today.chestAvailable && !viewModel.today.chestOpened {
+                Text(String(localized: "Finish today's puzzle to open the chest!"))
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(0.7))
+            }
+        }
+        .padding(16)
+        .forestCard(cornerRadius: 22)
+    }
+
+    private var streakLadder: some View {
+        HStack(spacing: 6) {
+            ForEach(PuzzleDailyEngine.ladder, id: \.day) { reward in
+                let reached = reward.day <= ((viewModel.today.streakDays - 1) % 7) + 1
+                    && viewModel.today.streakDays > 0
+                VStack(spacing: 2) {
+                    Text(reward.emoji)
+                        .font(.system(size: 18))
+                        .opacity(reached ? 1 : 0.3)
+                    Text("\(reward.gems)")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(reached ? 0.9 : 0.4))
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            String(localized: "Streak day \(viewModel.today.streakDays). Today's reward: \(viewModel.today.todaysReward.gems) gems.")
+        )
+    }
+
+    private func todayButton(
+        emoji: String,
+        title: String,
+        done: Bool,
+        dimmed: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(emoji).font(.system(size: 26))
+                Text(title)
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .background(ForestTheme.Colors.cloudWhite.opacity(done ? 0.5 : 0.9))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .opacity(dimmed ? 0.5 : 1)
+        }
+        .buttonStyle(SquishyButtonStyle())
+        .disabled(done || dimmed)
+        .accessibilityLabel(title)
+    }
+
+    private func chestCelebration(_ prize: Int) -> some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Text("🎁")
+                    .font(.system(size: 84))
+                    .floating(amplitude: 8, period: 1.8)
+                Text(String(localized: "💎 \(prize) gems!"))
+                    .font(ForestTheme.Fonts.heading)
+                    .foregroundStyle(ForestTheme.Colors.deepGreen)
+            }
+            .padding(28)
+            .forestCard(cornerRadius: 26)
+        }
+        .transition(.opacity)
+        .allowsHitTesting(false)
     }
 
     private var wallet: some View {

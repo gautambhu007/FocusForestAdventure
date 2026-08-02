@@ -32,7 +32,13 @@ enum ModelContainerFactory {
     /// Production container: local store + CloudKit private database sync.
     static func makeContainer() -> ModelContainer {
         guard !isRunningTests else {
-            let testConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            // `.none` is required, not just tidy: an in-memory store still
+            // attempts CloudKit mirroring otherwise.
+            let testConfig = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
             do {
                 return try ModelContainer(for: schema, configurations: [testConfig])
             } catch {

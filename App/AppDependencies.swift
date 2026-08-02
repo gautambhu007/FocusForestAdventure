@@ -40,6 +40,7 @@ final class AppDependencies {
     let missionGenerator: MissionGeneratorEngine
     let puzzleGenerator: PuzzleGeneratorEngine
     let puzzleProgressionEngine: PuzzleProgressionEngine
+    let puzzleDailyEngine: PuzzleDailyEngine
     let rewardEngine: RewardEngine
     let forestGrowthEngine: ForestGrowthEngine
     let achievementEngine: AchievementEngine
@@ -141,6 +142,7 @@ final class AppDependencies {
         self.missionGenerator = generator
         self.puzzleGenerator = PuzzleGeneratorEngine()
         self.puzzleProgressionEngine = puzzleProgression
+        self.puzzleDailyEngine = PuzzleDailyEngine()
         self.rewardEngine = reward
         self.forestGrowthEngine = growth
         self.achievementEngine = achievements
@@ -222,6 +224,7 @@ enum AppRoute: Hashable {
     case hindiModule(String)
     case puzzleWorlds
     case puzzleRun(PuzzleRun)
+    case puzzleCollection
     case listeningHub
     case listeningMyWords
     case wordExplorer
