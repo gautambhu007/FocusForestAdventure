@@ -24,11 +24,13 @@ final class ParentDashboardViewModel {
     private(set) var insights = DashboardInsights()
     /// Phase 2.3/2.8: what the app will adapt next, in plain language.
     private(set) var adaptationNotes: [String] = []
-    /// Puzzle Quest: per-skill mastery + plain-language lines.
-    private(set) var puzzleTallies: [PuzzleSkillTally] = []
+    /// Puzzle Adventure World: the seven-skill table + plain-language lines.
+    private(set) var cognitiveProfile: [CognitiveRating] = []
     private(set) var puzzleNotes: [String] = []
-    private(set) var puzzleCoins = 0
+    private(set) var puzzleGems = 0
     private(set) var puzzleBadges: [PuzzleBadge] = []
+    private(set) var puzzleCrystals: [MagicCrystal] = []
+    private(set) var hasPuzzleHistory = false
     /// Phase 2.4: export files, regenerated on each load.
     private(set) var pdfReportURL: URL?
     private(set) var csvReportURL: URL?
@@ -68,14 +70,18 @@ final class ParentDashboardViewModel {
             )
             self.adaptationNotes = daily.parentExplanations
 
-            // Puzzle Quest progress, reported by cognitive skill.
+            // Puzzle Adventure World, reported in cognitive-skill terms.
             let puzzles = try dependencies.puzzleRepository.snapshot(for: child)
-            self.puzzleTallies = puzzles.tallies
-                .filter { $0.attempted > 0 }
-                .sorted { $0.mastery > $1.mastery }
-            self.puzzleNotes = dependencies.puzzleProgressionEngine.parentSummary(snapshot: puzzles)
-            self.puzzleCoins = puzzles.coins
+            let engine = dependencies.puzzleProgressionEngine
+            self.cognitiveProfile = engine.cognitiveProfile(snapshot: puzzles)
+            self.puzzleNotes = engine.parentSummary(
+                snapshot: puzzles,
+                age: dependencies.appState.settings.childAge
+            )
+            self.puzzleGems = puzzles.gems
             self.puzzleBadges = PuzzleBadge.allCases.filter { puzzles.badges.contains($0) }
+            self.puzzleCrystals = puzzles.earnedCrystals
+            self.hasPuzzleHistory = puzzles.puzzlesAttempted > 0
 
             // Phase 2.4: refresh shareable reports.
             let report = ReportBuilder().makeReport(
@@ -227,29 +233,42 @@ struct ParentDashboardView: View {
             }
 
             Section {
-                if viewModel.puzzleTallies.isEmpty {
+                if !viewModel.hasPuzzleHistory {
                     Text(String(localized: "No puzzles played yet — find them under 🧩 Puzzles on the home screen."))
                         .foregroundStyle(.secondary)
-                }
-                ForEach(viewModel.puzzleTallies, id: \.skill) { tally in
-                    LabeledContent(tally.skill.localizedName) {
-                        Text("\(Int(tally.mastery * 100))% · \(tally.attempted)")
-                            .monospacedDigit()
+                } else {
+                    ForEach(viewModel.cognitiveProfile) { rating in
+                        LabeledContent(rating.skill.localizedName) {
+                            Text(rating.starDisplay)
+                                .font(rating.stars == nil ? .footnote : .body)
+                                .foregroundStyle(rating.stars == nil ? .secondary : .primary)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            rating.stars.map {
+                                String(localized: "\(rating.skill.localizedName): \($0) of 5 stars")
+                            } ?? String(localized: "\(rating.skill.localizedName): not enough play yet")
+                        )
                     }
-                }
-                if !viewModel.puzzleTallies.isEmpty {
-                    LabeledContent(String(localized: "Coins earned"), value: "🪙 \(viewModel.puzzleCoins)")
-                }
-                if !viewModel.puzzleBadges.isEmpty {
-                    LabeledContent(String(localized: "Badges")) {
-                        Text(viewModel.puzzleBadges.map(\.emoji).joined(separator: " "))
+                    if !viewModel.puzzleCrystals.isEmpty {
+                        LabeledContent(String(localized: "Crystals won")) {
+                            Text(viewModel.puzzleCrystals.map(\.emoji).joined(separator: " "))
+                        }
+                    }
+                    LabeledContent(String(localized: "Magic gems"), value: "💎 \(viewModel.puzzleGems)")
+                    if !viewModel.puzzleBadges.isEmpty {
+                        LabeledContent(String(localized: "Badges")) {
+                            Text(viewModel.puzzleBadges.map(\.emoji).joined(separator: " "))
+                        }
                     }
                 }
             } header: {
                 Text(String(localized: "Puzzle skills"))
             } footer: {
-                if !viewModel.puzzleTallies.isEmpty {
+                if viewModel.hasPuzzleHistory {
                     Text(viewModel.puzzleNotes.joined(separator: "\n"))
+                } else {
+                    Text(String(localized: "Ratings appear once your child has played a few puzzles. Every skill is measured from play only — nothing leaves this device."))
                 }
             }
 

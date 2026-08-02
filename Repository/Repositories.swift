@@ -285,6 +285,7 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
             snapshot.completedLevels[row.world] = row.completedLevels
             snapshot.difficulty[row.world] = row.difficulty
             snapshot.totalStars += row.starsEarned
+            if row.crystalEarned { snapshot.crystals.insert(row.world) }
             // Rebuild the adaptive window from the compact history.
             for (index, accuracy) in row.recentAccuracy.enumerated() {
                 snapshot.recentResults.append(
@@ -294,7 +295,7 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
                         difficulty: row.difficulty,
                         attempts: [],
                         stars: index < row.recentStars.count ? row.recentStars[index] : 1,
-                        coins: 0,
+                        gems: 0,
                         accuracy: accuracy
                     )
                 )
@@ -303,8 +304,13 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
         snapshot.tallies = (child.puzzleSkillStats ?? []).map {
             PuzzleSkillTally(skill: $0.skill, attempted: $0.attempted, solved: $0.solved)
         }
-        snapshot.coins = child.puzzleCoins
+        snapshot.gems = child.puzzleGems
+        snapshot.pieces = child.puzzlePieces
         snapshot.badges = child.puzzleBadges
+        snapshot.puzzlesAttempted = child.puzzlesAttempted
+        snapshot.puzzlesSolved = child.puzzlesSolved
+        snapshot.speedRatioSum = child.puzzleSpeedRatioSum
+        snapshot.hintsUsed = child.puzzleHintsUsed
         return snapshot
     }
 
@@ -321,6 +327,7 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
         row.completedLevels = max(row.completedLevels, result.level)
         row.difficulty = nextDifficulty
         row.starsEarned += result.stars
+        if result.earnsCrystal { row.crystalEarned = true }
         row.updatedAt = Date()
         row.recentAccuracy = Array(([result.accuracy] + row.recentAccuracy).prefix(PuzzleProgress.historyLength))
         row.recentStars = Array(([result.stars] + row.recentStars).prefix(PuzzleProgress.historyLength))
@@ -329,9 +336,17 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
             let stat = skillRow(for: child, skill: attempt.skill)
             stat.attempted += 1
             if attempt.solved { stat.solved += 1 }
+
+            child.puzzlesAttempted += 1
+            if attempt.solved { child.puzzlesSolved += 1 }
+            if attempt.usedHint { child.puzzleHintsUsed += 1 }
+            if attempt.timeLimit > 0 {
+                child.puzzleSpeedRatioSum += attempt.duration / attempt.timeLimit
+            }
         }
 
-        child.puzzleCoins += result.coins
+        child.puzzleGems += result.gems
+        child.puzzlePieces += result.pieces
         if !earned.isEmpty {
             child.puzzleBadges = child.puzzleBadges.union(earned)
         }

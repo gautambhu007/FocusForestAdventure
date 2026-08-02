@@ -21,8 +21,25 @@ enum ModelContainerFactory {
         PuzzleSkillStat.self
     ])
 
+    /// True when the app is running as an XCTest host. The test build isn't
+    /// signed with the iCloud entitlement, and CloudKit mirroring doesn't
+    /// fail politely without it — it takes the process down on a background
+    /// queue, before any `try` we could catch. Tests get a local store.
+    private static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     /// Production container: local store + CloudKit private database sync.
     static func makeContainer() -> ModelContainer {
+        guard !isRunningTests else {
+            let testConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            do {
+                return try ModelContainer(for: schema, configurations: [testConfig])
+            } catch {
+                fatalError("Unable to create test ModelContainer: \(error)")
+            }
+        }
+
         let cloudConfig = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,

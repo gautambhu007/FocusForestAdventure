@@ -48,10 +48,17 @@ final class ChildProfile {
     @Relationship(deleteRule: .cascade, inverse: \PuzzleSkillStat.child)
     var puzzleSkillStats: [PuzzleSkillStat]? = []
 
-    /// Puzzle Quest wallet & trophies. Cross-world, so they live on the
-    /// child rather than on a per-world progress row.
-    var puzzleCoins: Int = 0
+    /// Puzzle Adventure World wallet, trophies, and the aggregate play
+    /// signals behind the parent skill table. Cross-world, so they live on
+    /// the child rather than on a per-world progress row.
+    var puzzleGems: Int = 0
+    var puzzlePieces: Int = 0
     var puzzleBadgesRaw: [String] = []
+    var puzzlesAttempted: Int = 0
+    var puzzlesSolved: Int = 0
+    /// Running sum of (duration ÷ time limit) — the processing-speed signal.
+    var puzzleSpeedRatioSum: Double = 0
+    var puzzleHintsUsed: Int = 0
 
     var puzzleBadges: Set<PuzzleBadge> {
         get { Set(puzzleBadgesRaw.compactMap(PuzzleBadge.init(rawValue:))) }
@@ -330,6 +337,8 @@ final class PuzzleProgress {
     /// Current ladder rung, 1…8.
     var difficulty: Int = 1
     var starsEarned: Int = 0
+    /// The world's boss has been beaten and its crystal won.
+    var crystalEarned: Bool = false
     var updatedAt: Date = Date()
     /// Compact history for the adaptive rung: first-try accuracy of the last
     /// few runs, most recent first. Attempts themselves aren't persisted.

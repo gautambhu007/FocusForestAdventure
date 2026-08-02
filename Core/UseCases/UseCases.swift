@@ -173,15 +173,17 @@ struct StartPuzzleRunUseCase {
     let generator: PuzzleGeneratorEngine
     let progressionEngine: PuzzleProgressionEngine
 
-    /// Build the next level for a world at the child's current rung.
+    /// Build the next story level for a world at the child's current rung.
     /// A never-played world starts from an age-appropriate rung rather than
-    /// from 2×2 colour matching.
+    /// from 2×2 color matching.
     func execute(
         world: PuzzleWorld,
         child: ChildProfile,
         age: Int,
         preference: DifficultyPreference,
-        puzzleCount: Int = 5
+        puzzleCount: Int = 5,
+        /// Replay a specific chapter instead of the next one.
+        level: Int? = nil
     ) throws -> PuzzleRun {
         let snapshot = try puzzleRepository.snapshot(for: child)
         let hasHistory = snapshot.completed(world) > 0
@@ -193,16 +195,29 @@ struct StartPuzzleRunUseCase {
             recentResults: snapshot.recentResults.filter { $0.world == world },
             preference: preference
         )
-        let level = progressionEngine.nextLevel(in: world, snapshot: snapshot)
+        let chosenLevel = (level ?? progressionEngine.nextLevel(in: world, snapshot: snapshot))
+            .clamped(to: 1...world.levelCount)
         var rng = SystemRandomNumberGenerator()
         return generator.generateRun(
             world: world,
-            level: level,
+            level: chosenLevel,
             difficulty: difficulty,
             age: age,
             count: puzzleCount,
             using: &rng
         )
+    }
+
+    /// Today's challenge — the same board for the whole day, drawn from a
+    /// world the child has already opened.
+    func dailyPuzzle(child: ChildProfile, age: Int, day: Date = .now) throws -> Puzzle? {
+        let snapshot = try puzzleRepository.snapshot(for: child)
+        let unlocked = progressionEngine.unlockedWorlds(age: age, snapshot: snapshot)
+        guard let world = unlocked.last else { return nil }
+        let difficulty = snapshot.completed(world) > 0
+            ? snapshot.rung(world)
+            : progressionEngine.startingDifficulty(age: age, world: world)
+        return generator.generateDailyPuzzle(world: world, difficulty: difficulty, day: day)
     }
 }
 
@@ -213,9 +228,17 @@ struct PuzzleRunCompletion: Sendable {
     let result: PuzzleRunResult
     let newBadges: [PuzzleBadge]
     let nextDifficulty: Int
-    let totalCoins: Int
-    /// True when this level opened the next world.
+    let totalGems: Int
+    let totalPieces: Int
+    /// Won by beating this world's boss.
+    let crystal: MagicCrystal?
+    /// Opened by this level.
     let unlockedWorld: PuzzleWorld?
+    /// The story line to show — victory after a boss, the character's cheer
+    /// otherwise.
+    let storyLine: String
+    /// Every crystal is home: the Shadow Wizard falls.
+    let finishedCampaign: Bool
 }
 
 @MainActor
@@ -235,7 +258,8 @@ struct CompletePuzzleRunUseCase {
             world: run.world,
             level: run.level,
             difficulty: run.difficulty,
-            attempts: attempts
+            attempts: attempts,
+            isBoss: run.isBoss
         )
         let nextDifficulty = progressionEngine.nextDifficulty(
             current: run.difficulty,
@@ -252,12 +276,24 @@ struct CompletePuzzleRunUseCase {
             progressionEngine.isUnlocked(world, age: age, snapshot: after)
         }
 
+        let story = run.world.story
+        let storyLine: String
+        if result.earnsCrystal {
+            storyLine = story.victory
+        } else {
+            storyLine = story.character(forLevel: run.level)?.cheer ?? BunnyPhrase.celebration.text
+        }
+
         return PuzzleRunCompletion(
             result: result,
             newBadges: badges,
             nextDifficulty: nextDifficulty,
-            totalCoins: after.coins,
-            unlockedWorld: unlocked
+            totalGems: after.gems,
+            totalPieces: after.pieces,
+            crystal: result.earnsCrystal ? run.world.crystal : nil,
+            unlockedWorld: unlocked,
+            storyLine: storyLine,
+            finishedCampaign: after.hasCrystal(.rainbow)
         )
     }
 }
