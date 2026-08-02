@@ -139,6 +139,10 @@ struct HomeView: View {
                       label: String(localized: "Listening Corner")) {
                 viewModel.listeningCornerTapped()
             }
+            hubButton("🧩", String(localized: "Puzzles"),
+                      label: String(localized: "Puzzle Quest")) {
+                viewModel.puzzleQuestTapped()
+            }
         }
     }
 

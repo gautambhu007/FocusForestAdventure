@@ -42,6 +42,22 @@ final class ChildProfile {
     @Relationship(deleteRule: .cascade, inverse: \CustomWord.child)
     var customWords: [CustomWord]? = []
 
+    @Relationship(deleteRule: .cascade, inverse: \PuzzleProgress.child)
+    var puzzleProgress: [PuzzleProgress]? = []
+
+    @Relationship(deleteRule: .cascade, inverse: \PuzzleSkillStat.child)
+    var puzzleSkillStats: [PuzzleSkillStat]? = []
+
+    /// Puzzle Quest wallet & trophies. Cross-world, so they live on the
+    /// child rather than on a per-world progress row.
+    var puzzleCoins: Int = 0
+    var puzzleBadgesRaw: [String] = []
+
+    var puzzleBadges: Set<PuzzleBadge> {
+        get { Set(puzzleBadgesRaw.compactMap(PuzzleBadge.init(rawValue:))) }
+        set { puzzleBadgesRaw = newValue.map(\.rawValue).sorted() }
+    }
+
     init(name: String, avatarEmoji: String = "🐰", birthYear: Int = 2021) {
         self.name = name
         self.avatarEmoji = avatarEmoji
@@ -300,6 +316,55 @@ final class CustomWord {
 
     init(text: String) {
         self.text = text
+    }
+}
+
+// MARK: - Puzzle Quest
+
+/// One row per (child, world): how far they've got and which rung they're on.
+@Model
+final class PuzzleProgress {
+    var worldRaw: String = PuzzleWorld.forest.rawValue
+    /// Highest level finished, 0 = never played.
+    var completedLevels: Int = 0
+    /// Current ladder rung, 1…8.
+    var difficulty: Int = 1
+    var starsEarned: Int = 0
+    var updatedAt: Date = Date()
+    /// Compact history for the adaptive rung: first-try accuracy of the last
+    /// few runs, most recent first. Attempts themselves aren't persisted.
+    var recentAccuracy: [Double] = []
+    var recentStars: [Int] = []
+    var child: ChildProfile?
+
+    static let historyLength = 5
+
+    var world: PuzzleWorld {
+        get { PuzzleWorld(rawValue: worldRaw) ?? .forest }
+        set { worldRaw = newValue.rawValue }
+    }
+
+    init(world: PuzzleWorld, difficulty: Int = 1) {
+        self.worldRaw = world.rawValue
+        self.difficulty = difficulty
+    }
+}
+
+/// One row per (child, skill) — the parent dashboard's unit of reporting.
+@Model
+final class PuzzleSkillStat {
+    var skillRaw: String = PuzzleSkill.matchColors.rawValue
+    var attempted: Int = 0
+    var solved: Int = 0
+    var child: ChildProfile?
+
+    var skill: PuzzleSkill {
+        get { PuzzleSkill(rawValue: skillRaw) ?? .matchColors }
+        set { skillRaw = newValue.rawValue }
+    }
+
+    init(skill: PuzzleSkill) {
+        self.skillRaw = skill.rawValue
     }
 }
 
