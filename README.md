@@ -8,6 +8,7 @@ Every completed mission grows the child's own magic forest.
 
 - **7 adventures** — ABC, Numbers, Shapes, Colors, Memory, Listening, Animals — each with multiple mini-game types
 - **AI personalization** — on-device `LearningRecommendationEngine` + `AdaptiveDifficultyEngine` tune difficulty one gentle step at a time (never jumps), surface subjects that need practice, and cap missions at 3–5 minutes with a *frustration guard* that ends early on a high note
+- **Puzzle Quest** — 6 themed worlds and 18 generated puzzle types (patterns, odd-one-out, mirror symmetry, rotation, Raven-style matrices, visual sudoku, rule discovery) on an 8-rung *cognitive* ladder for ages 4–8, with stars, coins, and badges
 - **Living forest** — 8 evolving levels from empty meadow to magic forest, with 10 unlockable animated elements (butterflies → river → rainbow → castle → dragon)
 - **Movement breaks** — a 30-second wiggle break with Bunny after every mission
 - **Friendly Bunny voice** — `AVSpeechSynthesizer` guide; every phrase is positive

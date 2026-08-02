@@ -16,7 +16,9 @@ enum ModelContainerFactory {
         SessionRecord.self,
         StoryRecord.self,
         AchievementRecord.self,
-        CustomWord.self
+        CustomWord.self,
+        PuzzleProgress.self,
+        PuzzleSkillStat.self
     ])
 
     /// Production container: local store + CloudKit private database sync.

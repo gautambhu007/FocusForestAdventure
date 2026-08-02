@@ -77,6 +77,11 @@ extension Forest3DBuilder {
         return m
     }
 
+    /// Flower centres and other golden trim. Computed rather than stored:
+    /// `SCNMaterial` isn't `Sendable`, so a shared static would be a strict-
+    /// concurrency error.
+    private static var sharedGold: SCNMaterial { solid(PlantColor(0.98, 0.80, 0.28)) }
+
     /// A double-sided copy of a material, for flat leaves and petals.
     private static func flat(_ c: PlantColor) -> SCNMaterial {
         let m = solid(c)
@@ -140,6 +145,15 @@ extension Forest3DBuilder {
         let accent = species.accent
         let foliage = species.foliage
         var rng = Wobble(abs(kind.hashValue))
+
+        // Shared per-plant materials: every form below draws from these, so
+        // one plant is a couple of draw calls rather than one per petal.
+        let foliageMat = solid(foliage)
+        let accentMat = solid(accent)
+        let foliageFlat = flat(foliage)
+        let accentFlat = flat(accent)
+        let barkMat = textured(ForestTextures.bark)
+        let whiteMat = solid(PlantColor(0.97, 0.97, 0.94))
 
         switch species.form {
 

@@ -24,6 +24,11 @@ final class ParentDashboardViewModel {
     private(set) var insights = DashboardInsights()
     /// Phase 2.3/2.8: what the app will adapt next, in plain language.
     private(set) var adaptationNotes: [String] = []
+    /// Puzzle Quest: per-skill mastery + plain-language lines.
+    private(set) var puzzleTallies: [PuzzleSkillTally] = []
+    private(set) var puzzleNotes: [String] = []
+    private(set) var puzzleCoins = 0
+    private(set) var puzzleBadges: [PuzzleBadge] = []
     /// Phase 2.4: export files, regenerated on each load.
     private(set) var pdfReportURL: URL?
     private(set) var csvReportURL: URL?
@@ -62,6 +67,15 @@ final class ParentDashboardViewModel {
                 preference: dependencies.appState.settings.preferredDifficulty
             )
             self.adaptationNotes = daily.parentExplanations
+
+            // Puzzle Quest progress, reported by cognitive skill.
+            let puzzles = try dependencies.puzzleRepository.snapshot(for: child)
+            self.puzzleTallies = puzzles.tallies
+                .filter { $0.attempted > 0 }
+                .sorted { $0.mastery > $1.mastery }
+            self.puzzleNotes = dependencies.puzzleProgressionEngine.parentSummary(snapshot: puzzles)
+            self.puzzleCoins = puzzles.coins
+            self.puzzleBadges = PuzzleBadge.allCases.filter { puzzles.badges.contains($0) }
 
             // Phase 2.4: refresh shareable reports.
             let report = ReportBuilder().makeReport(
@@ -210,6 +224,33 @@ struct ParentDashboardView: View {
                 Text(String(localized: "What adapts next"))
             } footer: {
                 Text(String(localized: "All personalization happens on this device, from play history only."))
+            }
+
+            Section {
+                if viewModel.puzzleTallies.isEmpty {
+                    Text(String(localized: "No puzzles played yet — find them under 🧩 Puzzles on the home screen."))
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(viewModel.puzzleTallies, id: \.skill) { tally in
+                    LabeledContent(tally.skill.localizedName) {
+                        Text("\(Int(tally.mastery * 100))% · \(tally.attempted)")
+                            .monospacedDigit()
+                    }
+                }
+                if !viewModel.puzzleTallies.isEmpty {
+                    LabeledContent(String(localized: "Coins earned"), value: "🪙 \(viewModel.puzzleCoins)")
+                }
+                if !viewModel.puzzleBadges.isEmpty {
+                    LabeledContent(String(localized: "Badges")) {
+                        Text(viewModel.puzzleBadges.map(\.emoji).joined(separator: " "))
+                    }
+                }
+            } header: {
+                Text(String(localized: "Puzzle skills"))
+            } footer: {
+                if !viewModel.puzzleTallies.isEmpty {
+                    Text(viewModel.puzzleNotes.joined(separator: "\n"))
+                }
             }
 
             Section {

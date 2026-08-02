@@ -29,6 +29,7 @@ final class AppDependencies {
     let achievementRepository: any AchievementRepository
     let storyRepository: any StoryRepository
     let customWordRepository: any CustomWordRepository
+    let puzzleRepository: any PuzzleRepository
 
     // MARK: Engines & Services
     let soundEngine: any SoundEngineProtocol
@@ -37,6 +38,8 @@ final class AppDependencies {
     let difficultyEngine: AdaptiveDifficultyEngine
     let recommendationEngine: LearningRecommendationEngine
     let missionGenerator: MissionGeneratorEngine
+    let puzzleGenerator: PuzzleGeneratorEngine
+    let puzzleProgressionEngine: PuzzleProgressionEngine
     let rewardEngine: RewardEngine
     let forestGrowthEngine: ForestGrowthEngine
     let achievementEngine: AchievementEngine
@@ -58,6 +61,8 @@ final class AppDependencies {
     let completeMissionUseCase: CompleteMissionUseCase
     let fetchTodayPlanUseCase: FetchTodayPlanUseCase
     let fetchStatisticsUseCase: FetchStatisticsUseCase
+    let startPuzzleRunUseCase: StartPuzzleRunUseCase
+    let completePuzzleRunUseCase: CompletePuzzleRunUseCase
 
     init(modelContainer: ModelContainer) {
         let context = modelContainer.mainContext
@@ -89,6 +94,8 @@ final class AppDependencies {
         let storyRepo = SwiftDataStoryRepository(context: context)
         let achievementRepo = SwiftDataAchievementRepository(context: context)
         let customWordRepo = SwiftDataCustomWordRepository(context: context)
+        let puzzleProgression = PuzzleProgressionEngine()
+        let puzzleRepo = SwiftDataPuzzleRepository(context: context, engine: puzzleProgression)
         self.childRepository = childRepo
         self.missionRepository = missionRepo
         self.forestRepository = forestRepo
@@ -96,6 +103,7 @@ final class AppDependencies {
         self.achievementRepository = achievementRepo
         self.storyRepository = storyRepo
         self.customWordRepository = customWordRepo
+        self.puzzleRepository = puzzleRepo
 
         // Services
         let sound = SoundEngine()
@@ -131,6 +139,8 @@ final class AppDependencies {
         self.difficultyEngine = difficulty
         self.recommendationEngine = recommendation
         self.missionGenerator = generator
+        self.puzzleGenerator = PuzzleGeneratorEngine()
+        self.puzzleProgressionEngine = puzzleProgression
         self.rewardEngine = reward
         self.forestGrowthEngine = growth
         self.achievementEngine = achievements
@@ -171,6 +181,15 @@ final class AppDependencies {
             recommendationEngine: recommendation
         )
         self.fetchStatisticsUseCase = FetchStatisticsUseCase(statisticsRepository: statsRepo)
+        self.startPuzzleRunUseCase = StartPuzzleRunUseCase(
+            puzzleRepository: puzzleRepo,
+            generator: PuzzleGeneratorEngine(),
+            progressionEngine: puzzleProgression
+        )
+        self.completePuzzleRunUseCase = CompletePuzzleRunUseCase(
+            puzzleRepository: puzzleRepo,
+            progressionEngine: puzzleProgression
+        )
     }
 }
 
@@ -201,6 +220,8 @@ enum AppRoute: Hashable {
     case hindiAlphabet
     case hindiLearning
     case hindiModule(String)
+    case puzzleWorlds
+    case puzzleRun(PuzzleRun)
     case listeningHub
     case listeningMyWords
     case wordExplorer

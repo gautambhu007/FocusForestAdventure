@@ -165,6 +165,103 @@ struct CompleteMissionUseCase {
     }
 }
 
+// MARK: - Start Puzzle Run
+
+@MainActor
+struct StartPuzzleRunUseCase {
+    let puzzleRepository: any PuzzleRepository
+    let generator: PuzzleGeneratorEngine
+    let progressionEngine: PuzzleProgressionEngine
+
+    /// Build the next level for a world at the child's current rung.
+    /// A never-played world starts from an age-appropriate rung rather than
+    /// from 2×2 colour matching.
+    func execute(
+        world: PuzzleWorld,
+        child: ChildProfile,
+        age: Int,
+        preference: DifficultyPreference,
+        puzzleCount: Int = 5
+    ) throws -> PuzzleRun {
+        let snapshot = try puzzleRepository.snapshot(for: child)
+        let hasHistory = snapshot.completed(world) > 0
+        let current = hasHistory
+            ? snapshot.rung(world)
+            : progressionEngine.startingDifficulty(age: age, world: world)
+        let difficulty = progressionEngine.nextDifficulty(
+            current: current,
+            recentResults: snapshot.recentResults.filter { $0.world == world },
+            preference: preference
+        )
+        let level = progressionEngine.nextLevel(in: world, snapshot: snapshot)
+        var rng = SystemRandomNumberGenerator()
+        return generator.generateRun(
+            world: world,
+            level: level,
+            difficulty: difficulty,
+            age: age,
+            count: puzzleCount,
+            using: &rng
+        )
+    }
+}
+
+// MARK: - Complete Puzzle Run
+
+/// Everything the celebration screen needs after a level.
+struct PuzzleRunCompletion: Sendable {
+    let result: PuzzleRunResult
+    let newBadges: [PuzzleBadge]
+    let nextDifficulty: Int
+    let totalCoins: Int
+    /// True when this level opened the next world.
+    let unlockedWorld: PuzzleWorld?
+}
+
+@MainActor
+struct CompletePuzzleRunUseCase {
+    let puzzleRepository: any PuzzleRepository
+    let progressionEngine: PuzzleProgressionEngine
+
+    func execute(
+        run: PuzzleRun,
+        attempts: [PuzzleAttempt],
+        child: ChildProfile,
+        age: Int,
+        preference: DifficultyPreference
+    ) throws -> PuzzleRunCompletion {
+        let before = try puzzleRepository.snapshot(for: child)
+        let result = progressionEngine.makeResult(
+            world: run.world,
+            level: run.level,
+            difficulty: run.difficulty,
+            attempts: attempts
+        )
+        let nextDifficulty = progressionEngine.nextDifficulty(
+            current: run.difficulty,
+            recentResults: [result] + before.recentResults.filter { $0.world == run.world },
+            preference: preference
+        )
+        let badges = try puzzleRepository.record(result, nextDifficulty: nextDifficulty, for: child)
+
+        DailyStreak.recordActivity()   // puzzles count toward the streak too
+
+        let after = try puzzleRepository.snapshot(for: child)
+        let unlocked = PuzzleWorld.allCases.first { world in
+            !progressionEngine.isUnlocked(world, age: age, snapshot: before) &&
+            progressionEngine.isUnlocked(world, age: age, snapshot: after)
+        }
+
+        return PuzzleRunCompletion(
+            result: result,
+            newBadges: badges,
+            nextDifficulty: nextDifficulty,
+            totalCoins: after.coins,
+            unlockedWorld: unlocked
+        )
+    }
+}
+
 // MARK: - Fetch Today Plan
 
 @MainActor

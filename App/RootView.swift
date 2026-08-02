@@ -123,6 +123,10 @@ struct RootView: View {
             if let module = HindiLearningCatalog.module(id: moduleID) {
                 HindiModuleView(module: module, dependencies: dependencies)
             }
+        case .puzzleWorlds:
+            PuzzleWorldsView(viewModel: PuzzleWorldsViewModel(dependencies: dependencies))
+        case .puzzleRun(let run):
+            PuzzleRunView(viewModel: PuzzleRunViewModel(run: run, dependencies: dependencies))
         case .listeningHub:
             ListeningHubView(viewModel: ListeningHubViewModel(dependencies: dependencies))
         case .listeningMyWords:

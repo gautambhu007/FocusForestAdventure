@@ -60,6 +60,15 @@ protocol CustomWordRepository {
     func delete(_ word: CustomWord) throws
 }
 
+@MainActor
+protocol PuzzleRepository {
+    /// Everything the progression engine needs, in one read.
+    func snapshot(for child: ChildProfile) throws -> PuzzleProgressSnapshot
+    /// Apply a finished level: progress, per-skill tallies, coins, badges.
+    /// Returns the badges newly earned so the UI can celebrate them.
+    func record(_ result: PuzzleRunResult, nextDifficulty: Int, for child: ChildProfile) throws -> [PuzzleBadge]
+}
+
 // MARK: - Domain value types
 
 /// Aggregated performance snapshot consumed by the AI engines and parent dashboard.
@@ -257,5 +266,97 @@ final class SwiftDataCustomWordRepository: CustomWordRepository {
     func delete(_ word: CustomWord) throws {
         context.delete(word)
         try context.save()
+    }
+}
+
+@MainActor
+final class SwiftDataPuzzleRepository: PuzzleRepository {
+    private let context: ModelContext
+    private let engine: PuzzleProgressionEngine
+
+    init(context: ModelContext, engine: PuzzleProgressionEngine = PuzzleProgressionEngine()) {
+        self.context = context
+        self.engine = engine
+    }
+
+    func snapshot(for child: ChildProfile) throws -> PuzzleProgressSnapshot {
+        var snapshot = PuzzleProgressSnapshot()
+        for row in child.puzzleProgress ?? [] {
+            snapshot.completedLevels[row.world] = row.completedLevels
+            snapshot.difficulty[row.world] = row.difficulty
+            snapshot.totalStars += row.starsEarned
+            // Rebuild the adaptive window from the compact history.
+            for (index, accuracy) in row.recentAccuracy.enumerated() {
+                snapshot.recentResults.append(
+                    PuzzleRunResult(
+                        world: row.world,
+                        level: row.completedLevels,
+                        difficulty: row.difficulty,
+                        attempts: [],
+                        stars: index < row.recentStars.count ? row.recentStars[index] : 1,
+                        coins: 0,
+                        accuracy: accuracy
+                    )
+                )
+            }
+        }
+        snapshot.tallies = (child.puzzleSkillStats ?? []).map {
+            PuzzleSkillTally(skill: $0.skill, attempted: $0.attempted, solved: $0.solved)
+        }
+        snapshot.coins = child.puzzleCoins
+        snapshot.badges = child.puzzleBadges
+        return snapshot
+    }
+
+    func record(
+        _ result: PuzzleRunResult,
+        nextDifficulty: Int,
+        for child: ChildProfile
+    ) throws -> [PuzzleBadge] {
+        let earned = engine.newBadges(after: result, snapshot: try snapshot(for: child))
+
+        let row = progressRow(for: child, world: result.world)
+        // Levels only ever move forward — replaying an old level never
+        // rewinds the map.
+        row.completedLevels = max(row.completedLevels, result.level)
+        row.difficulty = nextDifficulty
+        row.starsEarned += result.stars
+        row.updatedAt = Date()
+        row.recentAccuracy = Array(([result.accuracy] + row.recentAccuracy).prefix(PuzzleProgress.historyLength))
+        row.recentStars = Array(([result.stars] + row.recentStars).prefix(PuzzleProgress.historyLength))
+
+        for attempt in result.attempts {
+            let stat = skillRow(for: child, skill: attempt.skill)
+            stat.attempted += 1
+            if attempt.solved { stat.solved += 1 }
+        }
+
+        child.puzzleCoins += result.coins
+        if !earned.isEmpty {
+            child.puzzleBadges = child.puzzleBadges.union(earned)
+        }
+
+        try context.save()
+        return earned
+    }
+
+    private func progressRow(for child: ChildProfile, world: PuzzleWorld) -> PuzzleProgress {
+        if let existing = (child.puzzleProgress ?? []).first(where: { $0.world == world }) {
+            return existing
+        }
+        let row = PuzzleProgress(world: world)
+        row.child = child
+        context.insert(row)
+        return row
+    }
+
+    private func skillRow(for child: ChildProfile, skill: PuzzleSkill) -> PuzzleSkillStat {
+        if let existing = (child.puzzleSkillStats ?? []).first(where: { $0.skill == skill }) {
+            return existing
+        }
+        let row = PuzzleSkillStat(skill: skill)
+        row.child = child
+        context.insert(row)
+        return row
     }
 }

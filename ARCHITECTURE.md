@@ -141,6 +141,47 @@ Challenge mixed — all sums ≤ 20). `AdditionEngine` generates 20 unique
 problems per section, sorted easy→hard (Challenge stays mixed), with four
 answer choices in-app.
 
+## 4e. Puzzle Quest (visual reasoning, ages 4–8)
+
+A second game loop beside missions, for the reasoning skills the adventures
+don't touch: pattern completion, symmetry, rotation, matrices, rule discovery.
+
+**Difficulty is cognitive, not quantitative.** `PuzzleSkill` is an eight-rung
+ladder (match colors → complete pattern → mirror → rotate → multi-rule →
+memory+logic → hidden pattern → mixed IQ); the grid bound grows *with* the
+rung rather than being the difficulty itself. `PuzzleWorld` (Forest, Jungle,
+Castle, Space, Lab, Dragon) is the themed progression on top, unlocked by age
+**or** by earning it through the previous world — a locked world always shows
+the child how to open it.
+
+**Puzzles are generated, not authored.** `PuzzleGeneratorEngine` turns a
+`PuzzleSpec` (the JSON contract: grid size, theme, rule, missing tiles,
+options, time limit, reward) into a `Puzzle`, seeded so a board is
+reproducible. Eighteen `PuzzleKind` recipes cover the spec's puzzle families;
+two invariants hold for all of them and are tested property-style across every
+kind × rung × world × seed: exactly one answer satisfies the stated rule, and
+no two answer chips are visually identical. Distractors are built to break
+*one* half of a rule (right shape/wrong color) so a wrong tap is informative
+rather than random.
+
+**One renderer.** Every kind draws through `PuzzleGridView` +
+`PuzzleOptionsView` (+ an optional legend), with `PuzzleAnswerMode` choosing
+between tapping a chip and tapping a board tile. Adding a recipe never needs
+a view.
+
+**Same psychology rules as missions.** Stars floor at 1; the time limit only
+*adds* the speed star and never ends a puzzle; a wrong tap costs nothing but a
+shake; the hint is one tap away; after three misses Bunny fills the answer in
+and moves on, so a child can be stuck but never stopped.
+`PuzzleProgressionEngine` moves the rung ±1 at most, promoting only after two
+strong runs and demoting immediately after a bad one.
+
+Persistence is deliberately small: `PuzzleProgress` (per child × world:
+level, rung, stars, and a 5-run accuracy history — attempts themselves are
+never stored) and `PuzzleSkillStat` (per child × skill), plus coins and badges
+on `ChildProfile`. The compact history is what lets the adaptive rung survive
+a relaunch without persisting every tap.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).
