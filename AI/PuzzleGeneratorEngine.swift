@@ -2,31 +2,39 @@
 //  PuzzleGeneratorEngine.swift
 //  Focus Forest Adventure
 //
-//  Builds Puzzle Quest boards from a PuzzleSpec. Pure and Sendable: every
-//  generator takes an `inout RandomNumberGenerator`, so a seed reproduces a
-//  board exactly (daily challenges, snapshot tests, bug reports).
+//  Builds Puzzle Adventure World boards from a PuzzleSpec. Pure and Sendable:
+//  every generator takes an `inout RandomNumberGenerator`, so a seed
+//  reproduces a board exactly (daily challenge, snapshot tests, bug reports).
 //
-//  Two invariants hold for every kind, and are covered by property-style
-//  tests: (1) exactly one answer is consistent with the stated rule, and
+//  Two invariants hold for every kind, covered by property-style tests:
+//  (1) exactly one answer is consistent with the stated rule, and
 //  (2) no two answer choices are visually identical.
+//
+//  Theming lives in the vocabulary, not in the recipes: a world's puzzles are
+//  drawn with its own cast (acorns, rockets, fossils), except where the rule
+//  is *about* color — then the board falls back to tintable shapes, because
+//  "the red one" has to mean something.
 //
 
 import Foundation
 
 struct PuzzleGeneratorEngine: Sendable {
 
-    // MARK: Palettes
+    // MARK: Vocabulary
 
-    /// Colors a world draws from. Early worlds stay on the four colors a
+    /// Colors a world draws from. Early worlds stay on the four a
     /// four-year-old can already name.
     private func palette(for world: PuzzleWorld) -> [ForestTheme.GameColor] {
         switch world {
-        case .forest:  [.red, .blue, .green, .yellow]
-        case .jungle:  [.green, .orange, .brown, .yellow]
-        case .castle:  [.purple, .pink, .blue, .yellow]
-        case .space:   [.blue, .purple, .yellow, .white]
-        case .lab:     [.red, .blue, .green, .yellow, .purple, .orange]
-        case .dragon:  [.red, .orange, .purple, .green, .blue, .pink]
+        case .forest:   [.red, .blue, .green, .yellow]
+        case .pirate:   [.red, .blue, .yellow, .brown]
+        case .space:    [.blue, .purple, .yellow, .white]
+        case .castle:   [.purple, .pink, .blue, .yellow]
+        case .dinosaur: [.green, .orange, .brown, .yellow]
+        case .ocean:    [.blue, .green, .orange, .pink]
+        case .ice:      [.blue, .white, .purple, .green]
+        case .volcano:  [.red, .orange, .yellow, .purple, .green, .blue]
+        case .rainbow:  [.red, .orange, .yellow, .green, .blue, .purple, .pink]
         }
     }
 
@@ -34,39 +42,54 @@ struct PuzzleGeneratorEngine: Sendable {
         difficulty <= 2 ? PuzzleSymbol.starter : PuzzleSymbol.allCases
     }
 
+    /// True when this puzzle can be drawn with the world's own pictures.
+    private func usesPictures(_ spec: PuzzleSpec) -> Bool {
+        !spec.kind.needsTintableShapes && !spec.world.story.motifs.isEmpty
+    }
+
     // MARK: Entry points
 
     /// Generate one puzzle. `seed` makes the board reproducible.
-    func generate(spec: PuzzleSpec, seed: UInt64) -> Puzzle {
+    func generate(spec: PuzzleSpec, title: String? = nil, seed: UInt64) -> Puzzle {
         var rng = SeededGenerator(seed: seed)
-        return generate(spec: spec, using: &rng)
+        return generate(spec: spec, title: title, using: &rng)
     }
 
-    func generate<R: RandomNumberGenerator>(spec: PuzzleSpec, using rng: inout R) -> Puzzle {
+    func generate<R: RandomNumberGenerator>(
+        spec: PuzzleSpec,
+        title: String? = nil,
+        using rng: inout R
+    ) -> Puzzle {
+        let puzzle: Puzzle
         switch spec.kind {
-        case .completePattern:  return completePattern(spec: spec, rng: &rng)
-        case .missingColor:     return missingColor(spec: spec, rng: &rng)
-        case .matchTheShape:    return matchTheShape(spec: spec, rng: &rng)
-        case .continueSequence: return continueSequence(spec: spec, rng: &rng)
-        case .sameOrDifferent:  return sameOrDifferent(spec: spec, rng: &rng)
-        case .oddOneOut:        return oddOneOut(spec: spec, rng: &rng)
-        case .mirrorPuzzle:     return mirrorPuzzle(spec: spec, rng: &rng)
-        case .shapeCount:       return shapeCount(spec: spec, rng: &rng)
-        case .missingTile:      return missingTile(spec: spec, rng: &rng)
-        case .rotateShape:      return rotateShape(spec: spec, rng: &rng)
-        case .buildSymmetry:    return buildSymmetry(spec: spec, rng: &rng)
-        case .colorLogic:       return colorLogic(spec: spec, rng: &rng)
-        case .patternMatrix:    return patternMatrix(spec: spec, rng: &rng)
-        case .numberShape:      return numberShape(spec: spec, rng: &rng)
-        case .ravenMatrix:      return ravenMatrix(spec: spec, rng: &rng)
-        case .growingSequence:  return growingSequence(spec: spec, rng: &rng)
-        case .visualSudoku:     return visualSudoku(spec: spec, rng: &rng)
-        case .ruleDiscovery:    return ruleDiscovery(spec: spec, rng: &rng)
+        case .completePattern:  puzzle = completePattern(spec: spec, rng: &rng)
+        case .missingColor:     puzzle = missingColor(spec: spec, rng: &rng)
+        case .matchTheShape:    puzzle = matchTheShape(spec: spec, rng: &rng)
+        case .continueSequence: puzzle = continueSequence(spec: spec, rng: &rng)
+        case .sameOrDifferent:  puzzle = sameOrDifferent(spec: spec, rng: &rng)
+        case .oddOneOut:        puzzle = oddOneOut(spec: spec, rng: &rng)
+        case .mirrorPuzzle:     puzzle = mirrorPuzzle(spec: spec, rng: &rng)
+        case .shapeCount:       puzzle = shapeCount(spec: spec, rng: &rng)
+        case .missingTile:      puzzle = missingTile(spec: spec, rng: &rng)
+        case .rotateShape:      puzzle = rotateShape(spec: spec, rng: &rng)
+        case .buildSymmetry:    puzzle = buildSymmetry(spec: spec, rng: &rng)
+        case .colorLogic:       puzzle = colorLogic(spec: spec, rng: &rng)
+        case .patternMatrix:    puzzle = patternMatrix(spec: spec, rng: &rng)
+        case .numberShape:      puzzle = numberShape(spec: spec, rng: &rng)
+        case .ravenMatrix:      puzzle = ravenMatrix(spec: spec, rng: &rng)
+        case .growingSequence:  puzzle = growingSequence(spec: spec, rng: &rng)
+        case .visualSudoku:     puzzle = visualSudoku(spec: spec, rng: &rng)
+        case .ruleDiscovery:    puzzle = ruleDiscovery(spec: spec, rng: &rng)
         }
+        guard let title else { return puzzle }
+        return puzzle.retitled(title)
     }
 
-    /// A level's worth of puzzles: `count` kinds appropriate to the world,
-    /// the child's age, and the ladder rung — easiest first.
+    // MARK: Runs
+
+    /// One story level. The chapter decides what the level is *about*; the
+    /// rung decides how hard it is. Levels open with a puzzle a rung easier
+    /// than the target so every level starts with a win.
     func generateRun<R: RandomNumberGenerator>(
         world: PuzzleWorld,
         level: Int,
@@ -76,36 +99,90 @@ struct PuzzleGeneratorEngine: Sendable {
         using rng: inout R
     ) -> PuzzleRun {
         let rung = difficulty.clamped(to: 1...8)
-        let eligible = eligibleKinds(world: world, difficulty: rung, age: age)
+        let story = world.story
+        let isBoss = world.isBossLevel(level)
+        let chapter = story.chapter(forLevel: level)
+
+        // A boss replays the whole world; a chapter leads with its own kind
+        // and mixes in neighbours for variety.
+        let pool: [PuzzleKind] = isBoss
+            ? eligibleKinds(world: world, difficulty: rung, age: age)
+            : chapterPool(story: story, level: level, difficulty: rung, age: age)
+
+        let total = max(1, isBoss ? max(count + 3, 8) : count)
         var puzzles: [Puzzle] = []
         var lastKind: PuzzleKind?
-        for index in 0..<max(1, count) {
-            // Ramp within the run: the first puzzle sits a rung below the
-            // last, so every level opens with an easy win.
-            let stepped = (rung - 1 + (index * 2) / max(1, count)).clamped(to: 1...8)
-            let pool = eligible.count > 1 ? eligible.filter { $0 != lastKind } : eligible
-            let kind = pool.randomElement(using: &rng) ?? .completePattern
+
+        for index in 0..<total {
+            let stepped = (rung - 1 + (index * 2) / total).clamped(to: 1...8)
+            let choices = pool.count > 1 ? pool.filter { $0 != lastKind } : pool
+            let kind = (index == 0 && !isBoss ? chapter?.kind : nil)
+                ?? choices.randomElement(using: &rng)
+                ?? .completePattern
             lastKind = kind
-            let spec = PuzzleSpec(world: world, kind: kind, difficulty: stepped)
-            puzzles.append(generate(spec: spec, using: &rng))
+            let spec = PuzzleSpec(
+                world: world,
+                kind: kind,
+                difficulty: isBoss ? min(stepped + 1, 8) : stepped,
+                isBoss: isBoss
+            )
+            let title = titleFor(kind: kind, story: story, fallback: chapter?.title)
+            puzzles.append(generate(spec: spec, title: title, using: &rng))
         }
-        return PuzzleRun(id: UUID(), world: world, level: level, difficulty: rung, puzzles: puzzles)
+
+        return PuzzleRun(
+            id: UUID(),
+            world: world,
+            level: level,
+            difficulty: rung,
+            puzzles: puzzles,
+            isBoss: isBoss,
+            chapter: chapter
+        )
     }
 
-    /// Kinds the world offers, filtered by age and rung, widening the filter
-    /// rather than ever returning nothing.
+    /// The daily challenge: same puzzle for everyone on a given day, drawn
+    /// from a world the child has already opened.
+    func generateDailyPuzzle(world: PuzzleWorld, difficulty: Int, day: Date, calendar: Calendar = .current) -> Puzzle {
+        let components = calendar.dateComponents([.year, .month, .day], from: day)
+        let seed = UInt64((components.year ?? 2000) * 10_000 + (components.month ?? 1) * 100 + (components.day ?? 1))
+        var rng = SeededGenerator(seed: seed &* 2_654_435_761)
+        let story = world.story
+        let chapter = story.chapters.randomElement(using: &rng) ?? story.chapters.first
+        let kind = chapter?.kind ?? .completePattern
+        let spec = PuzzleSpec(world: world, kind: kind, difficulty: difficulty)
+        return generate(spec: spec, title: chapter?.title, using: &rng)
+    }
+
+    /// The chapter's own kind, plus the kinds either side of it — enough
+    /// variety that a level isn't five of the same puzzle.
+    private func chapterPool(story: WorldStory, level: Int, difficulty: Int, age: Int) -> [PuzzleKind] {
+        let chapters = story.chapters
+        guard !chapters.isEmpty else { return [.completePattern] }
+        let index = (level - 1).clamped(to: 0...(chapters.count - 1))
+        let window = [index - 1, index, index + 1]
+            .filter { $0 >= 0 && $0 < chapters.count }
+            .map { chapters[$0].kind }
+        let unique = Array(Set(window))
+        return unique.isEmpty ? [chapters[index].kind] : unique
+    }
+
+    private func titleFor(kind: PuzzleKind, story: WorldStory, fallback: String?) -> String {
+        story.chapters.first { $0.kind == kind }?.title ?? fallback ?? story.world.shortTitle
+    }
+
+    /// Kinds a world offers, filtered by age and rung, widening rather than
+    /// ever returning nothing.
     func eligibleKinds(world: PuzzleWorld, difficulty: Int, age: Int) -> [PuzzleKind] {
-        let worldKinds = world.kinds
-        let byAge = worldKinds.filter { $0.minAge <= max(age, 4) }
-        let byRung = byAge.filter { $0.skill.level <= difficulty + 1 }
+        let worldKinds = Array(Set(world.kinds))
+        let byRung = worldKinds.filter { $0.skill.level <= difficulty + 1 }
         if !byRung.isEmpty { return byRung }
-        if !byAge.isEmpty { return byAge }
         return worldKinds.isEmpty ? [.completePattern] : worldKinds
     }
 
     // MARK: - Level 1–2 kinds
 
-    /// 🔺 🔵 🔺 🔵 ❓ 🔵 — a repeating unit with a hole punched in it.
+    /// 🍃 🍂 🍃 🍂 ❓ 🍂 — a repeating unit with a hole punched in it.
     private func completePattern<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let period = spec.difficulty <= 2 ? 2 : (spec.difficulty <= 4 ? 3 : Int.random(in: 2...3, using: &rng))
         let unit = distinctGlyphs(count: period, spec: spec, rng: &rng)
@@ -128,7 +205,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// A vertical color strip with one cell missing.
+    /// A color strip with one cell missing. Always shapes — the rule is color.
     private func missingColor<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let colors = palette(for: spec.world).shuffled(using: &rng)
         let period = 2
@@ -150,28 +227,21 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// Show one shape, find its twin. At rung 2+ every option shares a color
-    /// so only the shape can tell them apart.
+    /// Show one thing, find its twin.
     private func matchTheShape<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
-        let shapes = symbols(for: spec.difficulty).shuffled(using: &rng)
-        let colors = palette(for: spec.world).shuffled(using: &rng)
-        let sharedColor = colors[0]
-        let answer = PuzzleGlyph(symbol: shapes[0], color: sharedColor)
-        let decoys = shapes.dropFirst().prefix(3).map { symbol -> PuzzleGlyph in
-            let color = spec.difficulty >= 2 ? sharedColor : (colors.randomElement(using: &rng) ?? sharedColor)
-            return PuzzleGlyph(symbol: symbol, color: color)
-        }
+        let pool = distinctGlyphs(count: 4, spec: spec, rng: &rng)
+        let answer = pool[0]
         let tiles = [PuzzleTile(glyph: answer), PuzzleTile.blank(isTarget: true)]
         return assemble(
             spec: spec,
             grid: PuzzleGrid(rows: 1, columns: 2, tiles: tiles),
             answer: answer,
-            decoyPool: Array(decoys),
+            decoyPool: Array(pool.dropFirst()),
             rng: &rng
         )
     }
 
-    /// 🐶 🐱 🐶 🐱 ❓ — same machinery as `completePattern`, gap at the end.
+    /// 🐢 🦜 🐢 🦜 ❓ — gap at the end.
     private func continueSequence<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let period = spec.difficulty <= 3 ? 2 : 3
         let unit = distinctGlyphs(count: period, spec: spec, rng: &rng)
@@ -188,7 +258,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// 🍎🍎 vs 🍎🍏 — a yes/no question, the gentlest rung on the ladder.
+    /// Two things side by side — same, or different?
     private func sameOrDifferent<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let pair = distinctGlyphs(count: 2, spec: spec, rng: &rng)
         let areSame = Bool.random(using: &rng)
@@ -201,6 +271,7 @@ struct PuzzleGeneratorEngine: Sendable {
             world: spec.world,
             kind: spec.kind,
             difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
             grid: PuzzleGrid(rows: 1, columns: 2, tiles: tiles),
             answerMode: .options,
             options: [sameOption, differentOption],
@@ -215,11 +286,15 @@ struct PuzzleGeneratorEngine: Sendable {
     /// Three alike, one not — answered by tapping the board itself.
     private func oddOneOut<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let pair = distinctGlyphs(count: 2, spec: spec, rng: &rng)
-        // Rung 3+: the odd one differs only by color, which is a harder
-        // discrimination than a different shape.
-        let odd = spec.difficulty >= 3
-            ? PuzzleGlyph(symbol: pair[0].symbol, color: pair[1].color)
-            : pair[1]
+        // With tintable shapes, rung 3+ makes the odd one differ by color
+        // only — a harder discrimination. Pictures can't do that (their
+        // color isn't ours to change), so they differ by picture.
+        let odd: PuzzleGlyph
+        if spec.difficulty >= 3, pair[0].motif.isTintable {
+            odd = PuzzleGlyph(motif: pair[0].motif, color: pair[1].color)
+        } else {
+            odd = pair[1]
+        }
         let count = spec.difficulty <= 2 ? 4 : 6
         let oddIndex = Int.random(in: 0..<count, using: &rng)
         var tiles = (0..<count).map { index in
@@ -232,6 +307,7 @@ struct PuzzleGeneratorEngine: Sendable {
             world: spec.world,
             kind: spec.kind,
             difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
             grid: PuzzleGrid(rows: count / columns, columns: columns, tiles: tiles),
             answerMode: .tapTile,
             options: [],
@@ -241,7 +317,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// ▲ ▼ ▲ / ▼ ▲ ❓ — the second row inverts the first.
+    /// A B A / B A ❓ — the second row inverts the first.
     private func mirrorPuzzle<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let pair = distinctGlyphs(count: 2, spec: spec, rng: &rng)
         let columns = min(max(3, spec.maxSide - 1), 5)
@@ -264,7 +340,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// "How many triangles?" — counting inside visual noise.
+    /// "How many acorns?" — counting inside visual noise.
     private func shapeCount<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let side = min(max(3, spec.maxSide - 2), 4)
         let pair = distinctGlyphs(count: 2, spec: spec, rng: &rng)
@@ -288,6 +364,7 @@ struct PuzzleGeneratorEngine: Sendable {
             world: spec.world,
             kind: spec.kind,
             difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
             grid: PuzzleGrid(rows: side, columns: side, tiles: tiles),
             answerMode: .options,
             options: options,
@@ -299,7 +376,7 @@ struct PuzzleGeneratorEngine: Sendable {
 
     // MARK: - Level 3–4 kinds
 
-    /// 3×3 Latin square of three glyphs — each row is a shift of the one above.
+    /// 3×3 Latin square — each row is a shift of the one above.
     private func missingTile<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let unit = distinctGlyphs(count: 3, spec: spec, rng: &rng)
         var tiles: [PuzzleTile] = []
@@ -360,7 +437,6 @@ struct PuzzleGeneratorEngine: Sendable {
             grid.append([left, middle, left])          // mirrored about column 1
         }
         var tiles = grid.flatMap { $0.map { PuzzleTile(glyph: $0) } }
-        // Blank a mirrored (outer) cell so its partner determines the answer.
         let targetRow = Int.random(in: 0..<rows, using: &rng)
         let targetIndex = targetRow * columns + 2
         let answer = grid[targetRow][2]
@@ -374,17 +450,16 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// Legend: circle = red, square = blue. The row cycles the shapes; the
-    /// answer needs the right shape *and* the color the rule assigns it.
+    /// Legend: circle = red, square = blue. The answer needs the right shape
+    /// *and* the color the rule assigns it.
     private func colorLogic<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let shapes = symbols(for: spec.difficulty).shuffled(using: &rng)
         let colors = palette(for: spec.world).shuffled(using: &rng)
         let ruleCount = 2
         let ruled = (0..<ruleCount).map { PuzzleGlyph(symbol: shapes[$0], color: colors[$0]) }
-        // The legend's left side is the *uncolored* shape (drawn in ink), so
-        // the rule reads "this shape becomes this color".
+        // The legend's left side is the uncolored shape, drawn in ink.
         let legend = ruled.map { glyph in
-            PuzzleLegendEntry(inputs: [PuzzleGlyph(symbol: glyph.symbol, color: .black)], result: glyph)
+            PuzzleLegendEntry(inputs: [PuzzleGlyph(motif: glyph.motif, color: .black)], result: glyph)
         }
 
         let length = 4
@@ -393,10 +468,10 @@ struct PuzzleGeneratorEngine: Sendable {
         tiles[length - 1] = .blank(isTarget: true)
 
         // Distractors break exactly one half of the rule each.
-        let wrongColor = PuzzleGlyph(symbol: answer.symbol, color: colors[(ruleCount) % colors.count])
-        let swapped = ruled.first { $0.symbol != answer.symbol }
+        let wrongColor = PuzzleGlyph(symbol: answer.symbolOrDefault, color: colors[ruleCount % colors.count])
+        let swapped = ruled.first { $0.motif != answer.motif }
             ?? PuzzleGlyph(symbol: shapes[1], color: colors[1])
-        let wrongShape = PuzzleGlyph(symbol: swapped.symbol, color: answer.color)
+        let wrongShape = PuzzleGlyph(motif: swapped.motif, color: answer.color)
 
         var puzzle = assemble(
             spec: spec,
@@ -411,7 +486,7 @@ struct PuzzleGeneratorEngine: Sendable {
 
     // MARK: - Level 4–5 kinds
 
-    /// ▲▼▲ / ▼▲▼ / ▲?▲ — a checkerboard of two glyphs.
+    /// A checkerboard of two glyphs with one cell missing.
     private func patternMatrix<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let pair = distinctGlyphs(count: 2, spec: spec, rng: &rng)
         let side = 3
@@ -434,7 +509,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// 1 🔺 / 2 🔵 / 3 🔺 / 4 ❓ — number parity picks the shape.
+    /// 1 🦴 / 2 🥚 / 3 🦴 / 4 ❓ — number parity picks the picture.
     private func numberShape<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let pair = distinctGlyphs(count: 2, spec: spec, rng: &rng)
         let rows = 4
@@ -457,8 +532,8 @@ struct PuzzleGeneratorEngine: Sendable {
 
     // MARK: - Level 5+ kinds
 
-    /// Two independent rules at once: the row picks the shape, the column
-    /// picks the color. Distractors satisfy one rule but not both.
+    /// Two rules at once: the row picks the shape, the column picks the
+    /// color. Distractors satisfy one rule but never both.
     private func ravenMatrix<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let shapes = symbols(for: spec.difficulty).shuffled(using: &rng)
         let colors = palette(for: spec.world).shuffled(using: &rng)
@@ -472,7 +547,6 @@ struct PuzzleGeneratorEngine: Sendable {
                 tiles.append(PuzzleTile(glyph: glyph(row: row, column: column)))
             }
         }
-        // Blank a cell with both its row and its column still readable.
         let targetRow = Int.random(in: 0..<side, using: &rng)
         let targetColumn = Int.random(in: 0..<side, using: &rng)
         let targetIndex = targetRow * side + targetColumn
@@ -495,7 +569,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// 🔺 / 🔺🔵 / 🔺🔵🟩 / ? — each row extends the one above by one.
+    /// Each row extends the one above by exactly one.
     private func growingSequence<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let rows = 4
         let unit = distinctGlyphs(count: rows, spec: spec, rng: &rng)
@@ -519,8 +593,7 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// A 4×4 Latin square of colors — no color twice in any row or column,
-    /// so the blank has exactly one legal filling.
+    /// A 4×4 Latin square of colors — the blank has exactly one legal filling.
     private func visualSudoku<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let side = 4
         let colors = padded(palette(for: spec.world).shuffled(using: &rng),
@@ -548,8 +621,8 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// Two worked examples define a secret rule — "the answer keeps the
-    /// first shape and takes the second color" — then the child applies it.
+    /// Two worked examples define a secret rule — "keep the first shape, take
+    /// the second color" — then the child applies it.
     private func ruleDiscovery<R: RandomNumberGenerator>(spec: PuzzleSpec, rng: inout R) -> Puzzle {
         let shapes = symbols(for: spec.difficulty).shuffled(using: &rng)
         let colors = palette(for: spec.world).shuffled(using: &rng)
@@ -563,7 +636,7 @@ struct PuzzleGeneratorEngine: Sendable {
             return (left, right)
         }
         func combine(_ left: PuzzleGlyph, _ right: PuzzleGlyph) -> PuzzleGlyph {
-            PuzzleGlyph(symbol: left.symbol, color: right.color)
+            PuzzleGlyph(motif: left.motif, color: right.color)
         }
 
         let examples = (0..<2).map { index -> PuzzleLegendEntry in
@@ -578,9 +651,9 @@ struct PuzzleGeneratorEngine: Sendable {
             PuzzleTile.blank(isTarget: true)
         ]
         let decoys = [
-            combine(queryRight, queryLeft),                                       // rule reversed
-            queryLeft,                                                            // copied the left
-            queryRight                                                            // copied the right
+            combine(queryRight, queryLeft),   // rule reversed
+            queryLeft,                        // copied the left
+            queryRight                        // copied the right
         ]
         var puzzle = assemble(
             spec: spec,
@@ -597,7 +670,8 @@ struct PuzzleGeneratorEngine: Sendable {
 
     /// Build the option row: the answer plus distinct decoys, shuffled.
     /// Decoys that duplicate the answer (or each other) are dropped and
-    /// backfilled, so no two chips ever look identical.
+    /// backfilled from the same vocabulary the board was drawn from, so a
+    /// forest puzzle never sprouts a spaceship.
     private func assemble<R: RandomNumberGenerator>(
         spec: PuzzleSpec,
         grid: PuzzleGrid,
@@ -609,14 +683,10 @@ struct PuzzleGeneratorEngine: Sendable {
         for glyph in decoyPool.shuffled(using: &rng) where chosen.count < spec.options {
             if !chosen.contains(glyph) { chosen.append(glyph) }
         }
-        // Backfill from the full vocabulary if the recipe ran short.
         if chosen.count < spec.options {
-            for symbol in symbols(for: spec.difficulty).shuffled(using: &rng) {
-                for color in palette(for: spec.world).shuffled(using: &rng) where chosen.count < spec.options {
-                    let candidate = PuzzleGlyph(symbol: symbol, color: color, rotation: answer.rotation)
-                    if !chosen.contains(candidate) { chosen.append(candidate) }
-                }
-                if chosen.count >= spec.options { break }
+            for candidate in vocabulary(spec: spec, rotation: answer.rotation, rng: &rng)
+            where chosen.count < spec.options {
+                if !chosen.contains(candidate) { chosen.append(candidate) }
             }
         }
 
@@ -627,6 +697,7 @@ struct PuzzleGeneratorEngine: Sendable {
             world: spec.world,
             kind: spec.kind,
             difficulty: spec.difficulty,
+            title: spec.kind.rawValue,
             grid: grid,
             answerMode: .options,
             options: options,
@@ -636,13 +707,39 @@ struct PuzzleGeneratorEngine: Sendable {
         )
     }
 
-    /// `count` glyphs that are pairwise distinct in *both* shape and color —
-    /// two signals apart, so a color-blind child can still tell them apart.
+    /// Every glyph this puzzle may legally draw, in shuffled order.
+    private func vocabulary<R: RandomNumberGenerator>(
+        spec: PuzzleSpec,
+        rotation: Double,
+        rng: inout R
+    ) -> [PuzzleGlyph] {
+        if usesPictures(spec) {
+            return spec.world.story.motifs
+                .shuffled(using: &rng)
+                .map { PuzzleGlyph(motif: $0, color: .black, rotation: rotation) }
+        }
+        var glyphs: [PuzzleGlyph] = []
+        for symbol in symbols(for: spec.difficulty).shuffled(using: &rng) {
+            for color in palette(for: spec.world).shuffled(using: &rng) {
+                glyphs.append(PuzzleGlyph(symbol: symbol, color: color, rotation: rotation))
+            }
+        }
+        return glyphs
+    }
+
+    /// `count` glyphs that are pairwise distinct. Picture worlds vary the
+    /// picture; shape worlds vary *both* shape and color, so a color-blind
+    /// child always has a second signal.
     private func distinctGlyphs<R: RandomNumberGenerator>(
         count: Int,
         spec: PuzzleSpec,
         rng: inout R
     ) -> [PuzzleGlyph] {
+        if usesPictures(spec) {
+            let motifs = padded(spec.world.story.motifs.shuffled(using: &rng),
+                                with: PuzzleWorld.forest.story.motifs, toAtLeast: count)
+            return (0..<count).map { PuzzleGlyph(motif: motifs[$0], color: .black) }
+        }
         let shapes = padded(symbols(for: spec.difficulty).shuffled(using: &rng),
                             with: PuzzleSymbol.allCases, toAtLeast: count)
         let colors = padded(palette(for: spec.world).shuffled(using: &rng),
@@ -650,9 +747,9 @@ struct PuzzleGeneratorEngine: Sendable {
         return (0..<count).map { PuzzleGlyph(symbol: shapes[$0], color: colors[$0]) }
     }
 
-    /// `values`, extended with anything from `fallback` it doesn't already
-    /// contain, until it has `toAtLeast` *distinct* entries. Padding must not
-    /// introduce duplicates — a repeated color would break the Latin squares.
+    /// `values`, extended from `fallback` until it holds `toAtLeast`
+    /// *distinct* entries. Padding must never introduce duplicates — a
+    /// repeated color would break the Latin squares.
     private func padded<T: Hashable>(_ values: [T], with fallback: [T], toAtLeast count: Int) -> [T] {
         var seen = Set(values)
         var result = values
@@ -666,8 +763,8 @@ struct PuzzleGeneratorEngine: Sendable {
     }
 
     /// Extra decorative blanks for the higher rungs (`spec.missingTiles`).
-    /// Only applied to kinds whose rule determines *every* cell, so an extra
-    /// hole adds load without adding ambiguity.
+    /// Only for kinds whose rule determines *every* cell, so an extra hole
+    /// adds load without adding ambiguity.
     private func applyExtraBlanks<R: RandomNumberGenerator>(
         _ tiles: inout [PuzzleTile],
         spec: PuzzleSpec,
@@ -684,5 +781,37 @@ struct PuzzleGeneratorEngine: Sendable {
     private func normalizedAngle(_ degrees: Double) -> Double {
         let wrapped = degrees.truncatingRemainder(dividingBy: 360)
         return wrapped < 0 ? wrapped + 360 : wrapped
+    }
+}
+
+// MARK: - Small conveniences
+
+private extension PuzzleGlyph {
+    /// The underlying shape, for the color-rule generators that only ever
+    /// build shape glyphs.
+    var symbolOrDefault: PuzzleSymbol {
+        if case .shape(let symbol) = motif { return symbol }
+        return .circle
+    }
+}
+
+extension Puzzle {
+    /// Story title applied after generation — the recipes don't know which
+    /// chapter they were summoned for.
+    func retitled(_ newTitle: String) -> Puzzle {
+        Puzzle(
+            id: id,
+            world: world,
+            kind: kind,
+            difficulty: difficulty,
+            title: newTitle,
+            grid: grid,
+            answerMode: answerMode,
+            options: options,
+            correctID: correctID,
+            timeLimit: timeLimit,
+            reward: reward,
+            legend: legend
+        )
     }
 }

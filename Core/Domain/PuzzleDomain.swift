@@ -2,12 +2,21 @@
 //  PuzzleDomain.swift
 //  Focus Forest Adventure
 //
-//  Pure domain value types for Puzzle Quest — the visual-reasoning game
-//  (patterns, symmetry, rotation, matrices) for ages 4–8. All Sendable.
+//  Pure domain value types for Puzzle Adventure World — the story campaign
+//  where a Young Explorer restores the kingdom of Brainland one puzzle at a
+//  time. All Sendable.
 //
-//  The difficulty ladder is *cognitive*, not "more shapes": each rung asks
-//  for a new kind of thinking (match → complete → mirror → rotate → multi-rule
-//  → memory+logic → hidden pattern → mixed IQ), and the grid grows with it.
+//  Two axes, deliberately independent:
+//  • WORLDS are the story (Forest → Pirate → Space → … → Rainbow). They give
+//    a child a *reason* to solve the next puzzle: characters to help, a boss
+//    to beat, a crystal to win back.
+//  • SKILL RUNGS are the difficulty (match → complete → mirror → rotate →
+//    multi-rule → memory+logic → hidden pattern → mixed IQ). The ladder is
+//    cognitive, not "more shapes", and it moves with the child, not with
+//    the story.
+//
+//  A world therefore never hard-codes how hard it is; it decides what the
+//  puzzles are *about*. See BrainlandStory for the chapter list.
 //
 
 import Foundation
@@ -15,120 +24,162 @@ import SwiftUI
 
 // MARK: - Worlds
 
-/// Themed progressions. A world is unlocked by age *and* by finishing enough
-/// levels of the previous one — never by spending anything.
 enum PuzzleWorld: String, CaseIterable, Codable, Sendable, Hashable {
-    case forest, jungle, castle, space, lab, dragon
+    case forest      // 🌳 Forest of Patterns
+    case pirate      // 🏴‍☠️ Pirate Island
+    case space       // 🚀 Space Academy
+    case castle      // 🏰 Magic Castle
+    case dinosaur    // 🦕 Dinosaur Valley
+    case ocean       // 🌊 Ocean Kingdom
+    case ice         // ❄️ Ice Mountain
+    case volcano     // 🌋 Volcano Lab
+    case rainbow     // 🌈 Rainbow Kingdom (the final trial)
 
     var localizedTitle: String {
         switch self {
-        case .forest: String(localized: "Forest")
-        case .jungle: String(localized: "Jungle")
-        case .castle: String(localized: "Castle")
-        case .space: String(localized: "Space")
-        case .lab: String(localized: "Lab")
-        case .dragon: String(localized: "Dragon")
+        case .forest: String(localized: "Forest of Patterns")
+        case .pirate: String(localized: "Pirate Island")
+        case .space: String(localized: "Space Academy")
+        case .castle: String(localized: "Magic Castle")
+        case .dinosaur: String(localized: "Dinosaur Valley")
+        case .ocean: String(localized: "Ocean Kingdom")
+        case .ice: String(localized: "Ice Mountain")
+        case .volcano: String(localized: "Volcano Lab")
+        case .rainbow: String(localized: "Rainbow Kingdom")
         }
     }
 
-    /// What the world trains, in words a parent reads on the dashboard.
-    var localizedTheme: String {
+    /// Short name for tight spaces (map tiles, dashboards).
+    var shortTitle: String {
         switch self {
-        case .forest: String(localized: "Colors")
-        case .jungle: String(localized: "Shapes")
-        case .castle: String(localized: "Patterns")
-        case .space: String(localized: "Logic")
-        case .lab: String(localized: "Brain Games")
-        case .dragon: String(localized: "Expert")
+        case .forest: String(localized: "Forest")
+        case .pirate: String(localized: "Pirates")
+        case .space: String(localized: "Space")
+        case .castle: String(localized: "Castle")
+        case .dinosaur: String(localized: "Dinos")
+        case .ocean: String(localized: "Ocean")
+        case .ice: String(localized: "Ice")
+        case .volcano: String(localized: "Volcano")
+        case .rainbow: String(localized: "Rainbow")
         }
     }
 
     var emoji: String {
         switch self {
         case .forest: "🌳"
-        case .jungle: "🐼"
-        case .castle: "🏰"
+        case .pirate: "🏴‍☠️"
         case .space: "🚀"
-        case .lab: "🧩"
-        case .dragon: "🐉"
+        case .castle: "🏰"
+        case .dinosaur: "🦕"
+        case .ocean: "🌊"
+        case .ice: "❄️"
+        case .volcano: "🌋"
+        case .rainbow: "🌈"
         }
     }
 
-    /// Youngest age this world is offered at (Settings → Learning → age).
+    /// What this world mostly trains — the line a parent reads.
+    var localizedFocus: String {
+        switch self {
+        case .forest: String(localized: "Colors, shapes, and patterns")
+        case .pirate: String(localized: "Direction, planning, and sequences")
+        case .space: String(localized: "Spatial reasoning and rotation")
+        case .castle: String(localized: "Logic and deduction")
+        case .dinosaur: String(localized: "Memory and classification")
+        case .ocean: String(localized: "Sorting and visual scanning")
+        case .ice: String(localized: "Multi-step reasoning")
+        case .volcano: String(localized: "Mixed skills at once")
+        case .rainbow: String(localized: "Everything, together")
+        }
+    }
+
     var minAge: Int {
         switch self {
-        case .forest, .jungle: 4
-        case .castle: 5
-        case .space: 6
-        case .lab: 7
-        case .dragon: 8
+        case .forest: 4
+        case .pirate: 5
+        case .space, .castle: 6
+        case .dinosaur, .ocean: 7
+        case .ice, .volcano, .rainbow: 8
         }
     }
 
-    var levelCount: Int {
-        switch self {
-        case .forest, .jungle: 30
-        case .castle: 40
-        case .space: 50
-        case .lab: 60
-        case .dragon: 80
-        }
-    }
+    /// Story levels, then one boss. Ten chapters is a campaign a child can
+    /// actually finish — a 30-level grind would put the crystal out of reach,
+    /// and the crystal is the whole point.
+    var levelCount: Int { BrainlandStory.story(for: self).chapters.count + 1 }
 
-    /// Levels of the *previous* world needed before this one opens.
-    /// Deliberately well under `levelCount` — a child who is ready by age
-    /// shouldn't be gated behind completionism.
-    var levelsRequiredInPrevious: Int {
-        previous == nil ? 0 : 10
-    }
+    /// The final level of a world is its boss.
+    var bossLevel: Int { levelCount }
 
+    func isBossLevel(_ level: Int) -> Bool { level >= bossLevel }
+
+    /// Worlds must be *earned*: the crystal from the previous world opens
+    /// the next. Age only decides where a child may start, never how the
+    /// story unfolds.
     var previous: PuzzleWorld? {
         let all = PuzzleWorld.allCases
         guard let index = all.firstIndex(of: self), index > 0 else { return nil }
         return all[index - 1]
     }
 
+    /// The Rainbow Kingdom needs every crystal, not just the last one.
+    var requiresAllCrystals: Bool { self == .rainbow }
+
     var tint: Color {
         switch self {
         case .forest: ForestTheme.Colors.leafGreen
-        case .jungle: ForestTheme.Colors.mint
-        case .castle: ForestTheme.Colors.lavender
+        case .pirate: ForestTheme.Colors.sunshine
         case .space: ForestTheme.Colors.skyBlue
-        case .lab: ForestTheme.Colors.bubblegum
-        case .dragon: ForestTheme.Colors.peach
+        case .castle: ForestTheme.Colors.lavender
+        case .dinosaur: ForestTheme.Colors.peach
+        case .ocean: ForestTheme.Colors.mint
+        case .ice: ForestTheme.Colors.skyBlue
+        case .volcano: ForestTheme.Colors.bubblegum
+        case .rainbow: ForestTheme.Colors.sunshine
         }
     }
 
     var place: ForestPlace {
         switch self {
         case .forest: .glade
-        case .jungle: .deepWoods
-        case .castle: .blossom
+        case .pirate: .riverbank
         case .space: .night
-        case .lab: .magicGrove
-        case .dragon: .dusk
+        case .castle: .blossom
+        case .dinosaur: .deepWoods
+        case .ocean: .riverbank
+        case .ice: .dusk
+        case .volcano: .dusk
+        case .rainbow: .magicGrove
         }
     }
 
-    /// Puzzle kinds this world draws from, in roughly increasing order.
-    var kinds: [PuzzleKind] {
-        PuzzleKind.allCases.filter { $0.worlds.contains(self) }
-    }
+    var story: WorldStory { BrainlandStory.story(for: self) }
+    var crystal: MagicCrystal { story.crystal }
+    var kinds: [PuzzleKind] { story.chapters.map(\.kind) }
+}
+
+/// The prize for beating a world's boss. Seven crystals power the Rainbow
+/// Castle; the eighth (Volcano) is the bonus lab's trophy.
+struct MagicCrystal: Hashable, Sendable, Identifiable {
+    let world: PuzzleWorld
+    let emoji: String
+    let localizedName: String
+
+    var id: PuzzleWorld { world }
 }
 
 // MARK: - Cognitive ladder
 
-/// The eight rungs. `level` doubles as the difficulty number stored on
-/// progress records, so it must stay stable across releases.
+/// The eight difficulty rungs. `level` is persisted, so the order is fixed.
 enum PuzzleSkill: String, CaseIterable, Codable, Sendable, Hashable {
-    case matchColors        // 1 — 2×2
-    case completePattern    // 2 — 3×3
-    case mirrorSymmetry     // 3 — 4×4
-    case rotation           // 4 — 5×5
-    case multiRule          // 5 — 6×6
-    case memoryLogic        // 6 — 7×7
-    case hiddenPattern      // 7 — 8×8
-    case mixedIQ            // 8 — 9×9
+    case matchColors        // 1
+    case completePattern    // 2
+    case mirrorSymmetry     // 3
+    case rotation           // 4
+    case multiRule          // 5
+    case memoryLogic        // 6
+    case hiddenPattern      // 7
+    case mixedIQ            // 8
 
     var level: Int { (PuzzleSkill.allCases.firstIndex(of: self) ?? 0) + 1 }
 
@@ -137,8 +188,8 @@ enum PuzzleSkill: String, CaseIterable, Codable, Sendable, Hashable {
         return allCases[index]
     }
 
-    /// Upper bound on the grid this rung may use. Generators stay *at or
-    /// below* it — a 3-in-a-row pattern is still 1×5 at level 5.
+    /// Upper bound on the grid this rung may use — generators stay at or
+    /// below it.
     var maxGridSide: Int { level + 1 }
 
     var localizedName: String {
@@ -153,36 +204,55 @@ enum PuzzleSkill: String, CaseIterable, Codable, Sendable, Hashable {
         case .mixedIQ: String(localized: "Mixed reasoning")
         }
     }
+
+    /// Which parent-facing cognitive skills this rung feeds. The dashboard
+    /// reports in these terms, not in engine terms.
+    var cognitiveSkills: [CognitiveSkill] {
+        switch self {
+        case .matchColors: [.patternRecognition, .concentration]
+        case .completePattern: [.patternRecognition, .logicalThinking]
+        case .mirrorSymmetry: [.spatialReasoning, .visualMemory]
+        case .rotation: [.spatialReasoning, .problemSolving]
+        case .multiRule: [.logicalThinking, .problemSolving]
+        case .memoryLogic: [.visualMemory, .logicalThinking]
+        case .hiddenPattern: [.patternRecognition, .concentration]
+        case .mixedIQ: [.problemSolving, .logicalThinking]
+        }
+    }
+}
+
+/// The seven skills the parent dashboard reports on.
+enum CognitiveSkill: String, CaseIterable, Codable, Sendable, Hashable {
+    case patternRecognition, visualMemory, spatialReasoning
+    case logicalThinking, concentration, problemSolving, processingSpeed
+
+    var localizedName: String {
+        switch self {
+        case .patternRecognition: String(localized: "Pattern Recognition")
+        case .visualMemory: String(localized: "Visual Memory")
+        case .spatialReasoning: String(localized: "Spatial Reasoning")
+        case .logicalThinking: String(localized: "Logical Thinking")
+        case .concentration: String(localized: "Concentration")
+        case .problemSolving: String(localized: "Problem Solving")
+        case .processingSpeed: String(localized: "Processing Speed")
+        }
+    }
 }
 
 // MARK: - Puzzle kinds
 
-/// One generator recipe. Every kind renders through the same
-/// grid + options screen, so adding a kind never needs a new view.
+/// One generator recipe. Chapters give these story names ("Leaf Pattern");
+/// the kind itself only describes the *rule*.
 enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
-    // Level 1–2 · ages 4–5
-    case completePattern      // 🔺🔵🔺🔵❓🔵
-    case missingColor         // fill the blank in a color strip
-    case matchTheShape        // which option matches the shown shape
-    case continueSequence     // 🐶🐱🐶🐱❓
-    case sameOrDifferent      // two groups → Same / Different
-    // Level 2–3 · ages 5–6
-    case oddOneOut            // three alike, one different
-    case mirrorPuzzle         // row flips the row above
-    case shapeCount           // how many triangles in the grid
-    // Level 3–4 · ages 6–7
-    case missingTile          // 3×3 matrix, one tile missing
-    case rotateShape          // ▶ ▼ ◀ ❓
-    case buildSymmetry        // complete the symmetric block
-    case colorLogic           // legend maps shape → color, apply it
-    // Level 4–5 · ages 7–8
-    case patternMatrix        // alternating matrix, missing cell
-    case numberShape          // number ↔ shape correspondence
-    // Level 5+ · ages 8+
-    case ravenMatrix          // checkerboard-style matrix completion
-    case growingSequence      // 🔺 / 🔺🔵 / 🔺🔵🟩 / ?
-    case visualSudoku         // no repeated color in a row or column
-    case ruleDiscovery        // ▲○ = ★, ○▲ = ? — infer the mapping
+    case completePattern, missingColor, matchTheShape, continueSequence, sameOrDifferent
+    case oddOneOut, mirrorPuzzle, shapeCount
+    case missingTile, rotateShape, buildSymmetry, colorLogic
+    case patternMatrix, numberShape
+    case ravenMatrix, growingSequence, visualSudoku, ruleDiscovery
+    /// Find every hidden thing on the board — tap them all.
+    case hiddenObject
+    /// The board is shown, then covered. What was in the marked cell?
+    case memoryGrid
 
     var skill: PuzzleSkill {
         switch self {
@@ -191,43 +261,28 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
         case .mirrorPuzzle, .buildSymmetry: .mirrorSymmetry
         case .rotateShape: .rotation
         case .colorLogic, .missingTile, .shapeCount: .multiRule
-        case .numberShape, .patternMatrix: .memoryLogic
-        case .ravenMatrix, .growingSequence: .hiddenPattern
+        case .numberShape, .patternMatrix, .memoryGrid: .memoryLogic
+        case .ravenMatrix, .growingSequence, .hiddenObject: .hiddenPattern
         case .visualSudoku, .ruleDiscovery: .mixedIQ
         }
     }
 
-    var minAge: Int {
+    /// Kinds whose *rule is about color* must use tintable shapes — a themed
+    /// emoji can't be "the red one".
+    var needsTintableShapes: Bool {
         switch self {
-        case .completePattern, .missingColor, .matchTheShape,
-             .continueSequence, .sameOrDifferent: 4
-        case .oddOneOut, .mirrorPuzzle, .shapeCount: 5
-        case .missingTile, .rotateShape, .buildSymmetry, .colorLogic: 6
-        case .patternMatrix, .numberShape: 7
-        case .ravenMatrix, .growingSequence, .visualSudoku, .ruleDiscovery: 8
+        // Rule-discovery recombines one glyph's shape with another's color,
+        // so it needs tintable shapes too.
+        case .missingColor, .colorLogic, .visualSudoku, .ravenMatrix, .rotateShape, .ruleDiscovery: true
+        default: false
         }
     }
 
-    var worlds: [PuzzleWorld] {
-        switch self {
-        case .missingColor, .matchTheShape, .sameOrDifferent: [.forest, .jungle]
-        case .completePattern, .continueSequence: [.forest, .jungle, .castle]
-        case .oddOneOut: [.jungle, .castle]
-        case .mirrorPuzzle, .buildSymmetry: [.castle, .space]
-        case .shapeCount: [.castle, .space]
-        case .missingTile, .colorLogic: [.space, .lab]
-        case .rotateShape: [.space, .lab]
-        case .patternMatrix, .numberShape: [.lab, .dragon]
-        case .ravenMatrix, .growingSequence, .visualSudoku, .ruleDiscovery: [.dragon]
-        }
-    }
-
-    /// Shown above the board and spoken by Bunny.
     var localizedPrompt: String {
         switch self {
         case .completePattern: String(localized: "What comes in the empty space?")
         case .missingColor: String(localized: "Which color is missing?")
-        case .matchTheShape: String(localized: "Find the shape that matches!")
+        case .matchTheShape: String(localized: "Find the one that matches!")
         case .continueSequence: String(localized: "What comes next?")
         case .sameOrDifferent: String(localized: "Are they the same or different?")
         case .oddOneOut: String(localized: "Which one is different?")
@@ -241,12 +296,11 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
         case .numberShape: String(localized: "What comes next?")
         case .ravenMatrix: String(localized: "Which tile finishes the pattern?")
         case .growingSequence: String(localized: "What comes next in the row?")
-        case .visualSudoku: String(localized: "No color twice in a row or column!")
+        case .visualSudoku: String(localized: "No repeats in a row or column!")
         case .ruleDiscovery: String(localized: "Figure out the secret rule!")
         }
     }
 
-    /// One free nudge. Never gives the answer away outright.
     var localizedHint: String {
         switch self {
         case .completePattern, .continueSequence:
@@ -254,7 +308,7 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
         case .missingColor:
             String(localized: "Look at the colors above and below.")
         case .matchTheShape:
-            String(localized: "Look at the corners of the shape.")
+            String(localized: "Look carefully at the edges.")
         case .sameOrDifferent:
             String(localized: "Look at them one at a time.")
         case .oddOneOut:
@@ -270,7 +324,7 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
         case .colorLogic:
             String(localized: "Check the rule at the top.")
         case .numberShape:
-            String(localized: "Match each number to its shape.")
+            String(localized: "Match each number to its picture.")
         case .growingSequence:
             String(localized: "Each row adds one more!")
         case .visualSudoku:
@@ -283,9 +337,7 @@ enum PuzzleKind: String, CaseIterable, Codable, Sendable, Hashable {
 
 // MARK: - Glyphs
 
-/// The drawable vocabulary. Symbol + color are independent so a puzzle can
-/// vary one while holding the other fixed — that separation is what makes
-/// "odd one out" and "color logic" learnable rather than guessable.
+/// Tintable geometric shapes — used whenever the *rule* is about color.
 enum PuzzleSymbol: String, CaseIterable, Codable, Sendable, Hashable {
     case triangle, circle, square, star, diamond, heart, hexagon, arrow, moon, leaf
 
@@ -319,19 +371,50 @@ enum PuzzleSymbol: String, CaseIterable, Codable, Sendable, Hashable {
         }
     }
 
-    /// Shapes simple enough for a four-year-old to name.
     static let starter: [PuzzleSymbol] = [.triangle, .circle, .square, .star]
 }
 
-/// A single drawn thing: shape, color, and (for rotation puzzles) heading.
+/// What a tile actually draws. Story worlds use their own cast of objects
+/// (acorns, rockets, fossils); color-rule puzzles fall back to shapes.
+enum PuzzleMotif: Hashable, Sendable {
+    case shape(PuzzleSymbol)
+    /// Themed picture. `name` is the spoken/VoiceOver word.
+    case picture(String, name: String)
+
+    var localizedName: String {
+        switch self {
+        case .shape(let symbol): symbol.localizedName
+        case .picture(_, let name): name
+        }
+    }
+
+    /// Pictures carry their own colors, so tinting them would be a lie —
+    /// generators must vary the *picture*, never its color.
+    var isTintable: Bool {
+        if case .shape = self { return true }
+        return false
+    }
+}
+
 struct PuzzleGlyph: Hashable, Sendable {
-    var symbol: PuzzleSymbol
+    var motif: PuzzleMotif
     var color: ForestTheme.GameColor
     /// Clockwise degrees. Only rotation puzzles use anything but 0.
     var rotation: Double = 0
 
+    init(motif: PuzzleMotif, color: ForestTheme.GameColor = .black, rotation: Double = 0) {
+        self.motif = motif
+        self.color = color
+        self.rotation = rotation
+    }
+
+    init(symbol: PuzzleSymbol, color: ForestTheme.GameColor, rotation: Double = 0) {
+        self.init(motif: .shape(symbol), color: color, rotation: rotation)
+    }
+
     var accessibilityLabel: String {
-        let base = "\(color.localizedName) \(symbol.localizedName)"
+        var base = motif.localizedName
+        if motif.isTintable { base = "\(color.localizedName) \(base)" }
         guard rotation != 0 else { return base }
         return "\(base), \(Int(rotation)) degrees"
     }
@@ -339,16 +422,12 @@ struct PuzzleGlyph: Hashable, Sendable {
 
 // MARK: - Board
 
-/// One cell. `glyph == nil` is the gap the child fills; every other cell is
-/// a given. A grid may hold more than one gap (`missingTiles`), but only the
-/// first is answered — the rest stay blank as visual noise for older rungs.
 struct PuzzleTile: Hashable, Sendable, Identifiable {
     let id: UUID
     var glyph: PuzzleGlyph?
-    /// Number/label cells (the "1 🔺 / 2 🔵" ladder). Mutually exclusive
-    /// with `glyph`.
+    /// Number/label cells (the "1 🔺 / 2 🔵" ladder).
     var text: String?
-    /// The gap the answer fills. Exactly one tile per puzzle has this.
+    /// The gap the answer fills. At most one tile per puzzle has this.
     var isTarget: Bool
 
     init(id: UUID = UUID(), glyph: PuzzleGlyph? = nil, text: String? = nil, isTarget: Bool = false) {
@@ -385,8 +464,6 @@ struct PuzzleGrid: Hashable, Sendable {
     var targetIndex: Int? { tiles.firstIndex(where: \.isTarget) }
 }
 
-/// A tappable answer. Either a glyph (most puzzles) or a word/number
-/// (counting, same-or-different) — never both.
 struct PuzzleOption: Hashable, Sendable, Identifiable {
     let id: UUID
     var glyph: PuzzleGlyph?
@@ -398,13 +475,10 @@ struct PuzzleOption: Hashable, Sendable, Identifiable {
         self.text = text
     }
 
-    var accessibilityLabel: String {
-        glyph?.accessibilityLabel ?? text ?? ""
-    }
+    var accessibilityLabel: String { glyph?.accessibilityLabel ?? text ?? "" }
 }
 
 /// A worked example shown above the board: "🔺 ⭕ = ⭐".
-/// Colour-logic uses one input; rule-discovery uses two.
 struct PuzzleLegendEntry: Hashable, Sendable, Identifiable {
     let id: UUID
     var inputs: [PuzzleGlyph]
@@ -424,11 +498,8 @@ struct PuzzleLegendEntry: Hashable, Sendable, Identifiable {
 
 // MARK: - Puzzle
 
-/// Where the child taps to answer.
 enum PuzzleAnswerMode: String, Codable, Sendable, Hashable {
-    /// Tap one of the option chips under the board (most kinds).
     case options
-    /// Tap a tile *on* the board — "which one is different?".
     case tapTile
 }
 
@@ -436,19 +507,18 @@ struct Puzzle: Hashable, Sendable, Identifiable {
     let id: UUID
     let world: PuzzleWorld
     let kind: PuzzleKind
-    /// Ladder rung 1…8 (see `PuzzleSkill`).
+    /// Ladder rung 1…8.
     let difficulty: Int
+    /// Story name for this puzzle ("Hidden Acorns"), from the chapter.
+    let title: String
     let grid: PuzzleGrid
     let answerMode: PuzzleAnswerMode
-    /// Empty in `.tapTile` mode.
     let options: [PuzzleOption]
-    /// Option id, or tile id in `.tapTile` mode — correctness is one
-    /// comparison either way.
+    /// Option id, or tile id in `.tapTile` mode.
     let correctID: UUID
-    /// Soft cap — the timer never ends the puzzle, it only stops awarding the
-    /// speed star (children must never lose progress to a clock).
+    /// Soft cap — the clock only *adds* the speed star, it never ends a puzzle.
     let timeLimit: TimeInterval
-    /// Coins for a first-try solve.
+    /// Magic gems for a first-try solve.
     let reward: Int
     var legend: [PuzzleLegendEntry] = []
 
@@ -462,24 +532,22 @@ struct Puzzle: Hashable, Sendable, Identifiable {
 
 // MARK: - Spec (the JSON contract)
 
-/// Declarative description of a puzzle to generate. Kept `Codable` so packs
-/// of hand-tuned puzzles can ship as JSON alongside the generator without a
-/// second code path — the generator is the only thing that builds a `Puzzle`.
+/// Declarative description of a puzzle to generate. `Codable` so hand-tuned
+/// puzzle packs can ship as JSON without a second code path — the generator
+/// stays the only thing that builds a `Puzzle`.
 struct PuzzleSpec: Codable, Hashable, Sendable {
-    /// "3x3" — an upper bound; a generator may use a smaller board.
     var gridSize: String
-    /// `PuzzleWorld` raw value.
     var theme: String
-    /// Ladder rung 1…8.
     var difficulty: Int
-    /// `PuzzleKind` raw value.
     var rule: String
     var missingTiles: Int
     var options: Int
     var timeLimit: TimeInterval
     var reward: Int
+    /// Boss puzzles are worth more and allow a little longer.
+    var isBoss: Bool
 
-    init(world: PuzzleWorld, kind: PuzzleKind, difficulty: Int) {
+    init(world: PuzzleWorld, kind: PuzzleKind, difficulty: Int, isBoss: Bool = false) {
         let rung = difficulty.clamped(to: 1...8)
         let side = PuzzleSkill.forLevel(rung).maxGridSide
         self.gridSize = "\(side)x\(side)"
@@ -488,14 +556,14 @@ struct PuzzleSpec: Codable, Hashable, Sendable {
         self.rule = kind.rawValue
         self.missingTiles = rung >= 5 ? 2 : 1
         self.options = rung <= 2 ? 3 : 4
-        self.timeLimit = TimeInterval(30 + rung * 5)
-        self.reward = 10 + rung * 5
+        self.timeLimit = TimeInterval(30 + rung * 5) + (isBoss ? 15 : 0)
+        self.reward = (10 + rung * 5) * (isBoss ? 2 : 1)
+        self.isBoss = isBoss
     }
 
     var world: PuzzleWorld { PuzzleWorld(rawValue: theme) ?? .forest }
     var kind: PuzzleKind { PuzzleKind(rawValue: rule) ?? .completePattern }
 
-    /// Parsed `gridSize`, falling back to the ladder's bound.
     var maxSide: Int {
         let parts = gridSize.lowercased().split(separator: "x")
         guard let first = parts.first, let value = Int(first) else {
@@ -507,7 +575,6 @@ struct PuzzleSpec: Codable, Hashable, Sendable {
 
 // MARK: - Results
 
-/// What the child did on one puzzle. Pure input to scoring/progress.
 struct PuzzleAttempt: Hashable, Sendable {
     var kind: PuzzleKind
     var skill: PuzzleSkill
@@ -519,13 +586,17 @@ struct PuzzleAttempt: Hashable, Sendable {
     var timeLimit: TimeInterval
 }
 
-/// One run through a world: a handful of puzzles, then a celebration.
+/// One playthrough of a level: a handful of puzzles, then a celebration.
 struct PuzzleRun: Hashable, Sendable, Identifiable {
     let id: UUID
     let world: PuzzleWorld
     let level: Int
     let difficulty: Int
     let puzzles: [Puzzle]
+    /// Boss runs are longer, harder, and pay a crystal.
+    let isBoss: Bool
+    /// The chapter being played, for the story card before the first puzzle.
+    let chapter: StoryChapter?
 
     static func == (lhs: PuzzleRun, rhs: PuzzleRun) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }

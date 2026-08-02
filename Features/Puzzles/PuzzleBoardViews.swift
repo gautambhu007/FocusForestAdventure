@@ -17,21 +17,31 @@ struct PuzzleGlyphView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        Image(systemName: glyph.symbol.systemImage)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .rotationEffect(.degrees(glyph.rotation))
-            .foregroundStyle(
-                ForestTheme.Colors.gameColor(
-                    glyph.color,
-                    colorBlindMode: appState.settings.isColorBlindModeEnabled
-                )
-            )
-            // Pale colors (white, yellow) need an outline to stay visible on
-            // a light card — shape is never the only signal, and neither is color.
-            .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
-            .accessibilityLabel(glyph.accessibilityLabel)
+        Group {
+            switch glyph.motif {
+            case .shape(let symbol):
+                Image(systemName: symbol.systemImage)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(
+                        ForestTheme.Colors.gameColor(
+                            glyph.color,
+                            colorBlindMode: appState.settings.isColorBlindModeEnabled
+                        )
+                    )
+                    // Pale colors (white, yellow) need an edge to stay visible
+                    // on a light card — color is never the only signal.
+                    .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
+            case .picture(let emoji, _):
+                // Story pictures carry their own color; they're never tinted.
+                Text(emoji)
+                    .font(.system(size: size * 0.86))
+                    .minimumScaleFactor(0.5)
+            }
+        }
+        .frame(width: size, height: size)
+        .rotationEffect(.degrees(glyph.rotation))
+        .accessibilityLabel(glyph.accessibilityLabel)
     }
 }
 
