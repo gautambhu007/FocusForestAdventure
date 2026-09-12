@@ -20,10 +20,20 @@ fast-forwarded from `feature/puzzle-quest`. What holds each one:
 | 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
 | 6 Art contract | `8ca14d5` | `WordSearchArtTests` — names unique and catalog-safe across all 609 assets, missing asset is nil, 21 painted places; `testTheMascotFollowsPlay` |
 
-**START HERE for the next session:** there is no engineering left in this
-study. The next action is a *decision* — commission art against
-`ArtContract.md`, or watch a child play sheet 31+ to settle the 10×10 touch
-size. If new engineering appears, add a row above and move this pointer.
+**START HERE for the next session:** the study's slices are done and the art
+contract is proven with real assets (`b3f9d80`). What remains, in order of
+value per effort:
+1. **Code-painted scenes** for the 19 sheets still on a gradient (ocean ×5,
+   farm ×2, prehistoric ×2, city ×2, beach ×2, winter, tropical ×2, savanna,
+   arctic, robot, construction, railway) — the way `ForestSceneBackground`
+   paints the forest. Kenney's Fish Pack tiles (seaweed, rocks, bubbles, sand;
+   CC0, in the scratchpad or re-downloadable) are ready-made parts for the
+   ocean family. Engineering, ~1 day for a family of painters.
+2. **Generated art** via `tools/wordhunt_art.py` once `OPENAI_API_KEY` is in
+   `~/.zshrc` — sheet 7 first, approve, then batch.
+3. **The 10×10 touch size on phones** — a decision from watching a child play
+   sheet 31+.
+Move this pointer when one of them lands.
 
 **Measured, not planned:** 249 target words (the brief's "~320" was 8 × 40; the
 stage-1 sheets legitimately carry 4). Grid sizes are the smallest stage size
