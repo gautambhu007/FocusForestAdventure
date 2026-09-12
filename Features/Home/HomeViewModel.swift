@@ -100,6 +100,12 @@ final class HomeViewModel {
         dependencies.appState.navigationPath.append(.puzzleWorlds)
     }
 
+    func wordHuntTapped() {
+        dependencies.hapticsService.playGentleTap()
+        dependencies.soundEngine.play(.tapPop)
+        dependencies.appState.navigationPath.append(.wordSearchHub)
+    }
+
     func magicChestTapped() {
         dependencies.hapticsService.playSuccess()
         dependencies.soundEngine.play(.chestOpen)

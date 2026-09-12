@@ -124,9 +124,11 @@ struct HomeView: View {
         .accessibilityHint(String(localized: "Opens your forest"))
     }
 
-    /// The three learning hubs, sized alike so none shouts louder.
+    /// The learning hubs, sized alike so none shouts louder. Three to a
+    /// row keeps every tile wide enough for a child's thumb; a short last
+    /// row leaves its tiles the same size rather than stretching them.
     private var learningHubs: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
             hubButton("🐰", String(localized: "Bunny"),
                       label: String(localized: "Talk to Bunny")) {
                 viewModel.talkToBunnyTapped()
@@ -142,6 +144,10 @@ struct HomeView: View {
             hubButton("🧩", String(localized: "Puzzles"),
                       label: String(localized: "Puzzle Quest")) {
                 viewModel.puzzleQuestTapped()
+            }
+            hubButton("🔍", String(localized: "Words"),
+                      label: String(localized: "Word Hunt")) {
+                viewModel.wordHuntTapped()
             }
         }
     }

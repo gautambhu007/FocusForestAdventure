@@ -225,6 +225,8 @@ enum AppRoute: Hashable {
     case puzzleWorlds
     case puzzleRun(PuzzleRun)
     case puzzleCollection
+    case wordSearchHub
+    case wordSearchSheet(Int)
     case listeningHub
     case listeningMyWords
     case wordExplorer
