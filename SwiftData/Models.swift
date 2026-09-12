@@ -347,6 +347,9 @@ final class PuzzleProgress {
     var starsEarned: Int = 0
     /// The world's boss has been beaten and its crystal won.
     var crystalEarned: Bool = false
+    /// Chapters replayed since the crystal was won — a finished world keeps
+    /// offering its chapters instead of its boss on repeat.
+    var replayCount: Int = 0
     /// Mural tiles revealed so far (0…9), one per puzzle piece placed.
     var muralTilesPlaced: Int = 0
     /// The mural's completion bonus has been paid.

@@ -137,6 +137,20 @@ enum DailyPuzzleLog {
 
     static func markDone(_ name: String, on date: Date = .now) {
         defaults.set(true, forKey: key(name, for: date))
+        pruneOldEntries(before: date)
+    }
+
+    /// Yesterday's flags are never read again, so they're swept up rather
+    /// than left to pile up at three keys a day forever.
+    static func pruneOldEntries(before date: Date, keepingDays: Int = 3, calendar: Calendar = .current) {
+        let recent = Set((0..<max(keepingDays, 1)).flatMap { offset -> [String] in
+            let day = calendar.date(byAdding: .day, value: -offset, to: date) ?? date
+            return [dailyPuzzle, chest, weekend].map { key($0, for: day, calendar: calendar) }
+        })
+        for stale in defaults.dictionaryRepresentation().keys
+        where stale.hasPrefix("puzzle.daily.") && !recent.contains(stale) {
+            defaults.removeObject(forKey: stale)
+        }
     }
 
     static let dailyPuzzle = "puzzle"

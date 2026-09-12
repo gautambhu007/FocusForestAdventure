@@ -39,6 +39,8 @@ final class PuzzleRunViewModel {
     private(set) var foundIDs: Set<UUID> = []
     /// Maze progress: the route walked so far.
     private(set) var path: [UUID] = []
+    /// True when the child has walked into a dead end. Backing up is free.
+    private(set) var isStuckInMaze = false
     /// Assembly progress: slots already holding their piece, and the pieces
     /// that went into them.
     private(set) var filledSlotIDs: Set<UUID> = []
@@ -168,18 +170,23 @@ final class PuzzleRunViewModel {
         return String(localized: "Now reach the 🏆!")
     }
 
-    /// True when the child has walked into a dead end. Backing up is free.
-    var isStuckInMaze: Bool {
-        guard puzzle.answerMode == .tapPath, !path.isEmpty, !isAdvancing else { return false }
-        return !MazeRules.hasRouteRemaining(path: path, in: puzzle.grid)
-    }
-
     /// Undo one step — a maze must never need restarting from scratch.
     func stepBack() {
         guard !path.isEmpty, !isAdvancing else { return }
         path.removeLast()
+        refreshStuckState()
         dependencies.hapticsService.playGentleTap()
         dependencies.soundEngine.play(.tapPop)
+    }
+
+    /// Recomputed only when the route changes. Reading this as a computed
+    /// property would re-run the search on every SwiftUI update instead.
+    private func refreshStuckState() {
+        guard puzzle.answerMode == .tapPath, !path.isEmpty, !isAdvancing else {
+            isStuckInMaze = false
+            return
+        }
+        isStuckInMaze = !MazeRules.hasRouteRemaining(path: path, in: puzzle.grid)
     }
 
     /// "3 of 5 found" for the hidden-object hunt.
@@ -307,6 +314,7 @@ final class PuzzleRunViewModel {
             return
         }
         path.append(id)
+        refreshStuckState()
         dependencies.soundEngine.play(.tapPop)
         dependencies.hapticsService.playGentleTap()
 
@@ -435,6 +443,7 @@ final class PuzzleRunViewModel {
             shakingID = nil
             foundIDs = []
             path = []
+            isStuckInMaze = false
             filledSlotIDs = []
             usedPieceIDs = []
             selectedPieceID = nil
@@ -453,6 +462,16 @@ final class PuzzleRunViewModel {
     private func finish() async {
         phase = .summary
         dependencies.soundEngine.play(run.isBoss ? .chestOpen : .starEarned)
+
+        // Today's activities count once they're *finished*. The mystery chest
+        // hangs off the daily puzzle, so marking it any earlier would hand
+        // out the chest for starting and quitting.
+        switch run.mode {
+        case .daily: DailyPuzzleLog.markDone(DailyPuzzleLog.dailyPuzzle)
+        case .weekend: DailyPuzzleLog.markDone(DailyPuzzleLog.weekend)
+        case .chapter, .boss: break
+        }
+
         do {
             let child = try dependencies.childRepository.activeChild()
             completion = try dependencies.completePuzzleRunUseCase.execute(

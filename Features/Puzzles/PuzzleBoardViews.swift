@@ -334,11 +334,21 @@ struct PuzzleGridView: View {
     /// Pipe puzzles: tiles the water has reached.
     var floodedIDs: Set<UUID> = []
 
+    private let spacing: CGFloat = 10
+    /// Tiles never grow past this, so a 2×2 board on an iPad doesn't become
+    /// four dinner plates.
+    private let maximumTileSide: CGFloat = 88
+
     var body: some View {
+        // The aspect ratio does the sizing: the board takes the width it is
+        // given and claims exactly the height that width implies. Reserving a
+        // fixed per-row height instead (the old approach) left a tall empty
+        // gap whenever tiles shrank to fit a narrow screen — and on a small
+        // phone with a 5-wide board that gap pushed the answer chips off the
+        // bottom of the screen.
         GeometryReader { proxy in
-            let spacing: CGFloat = 10
-            let available = proxy.size.width - spacing * CGFloat(grid.columns - 1)
-            let side = min(max(available / CGFloat(max(grid.columns, 1)), 36), 88)
+            let available = proxy.size.width - spacing * CGFloat(max(grid.columns - 1, 0))
+            let side = max(available / CGFloat(max(grid.columns, 1)), 24)
 
             VStack(spacing: spacing) {
                 ForEach(0..<grid.rows, id: \.self) { row in
@@ -353,12 +363,23 @@ struct PuzzleGridView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: boardHeight)
+        .aspectRatio(aspectRatio, contentMode: .fit)
+        .frame(maxWidth: maximumWidth)
     }
 
-    /// Keeps the board from pushing the answer chips off screen on small phones.
-    private var boardHeight: CGFloat {
-        CGFloat(grid.rows) * 88 + CGFloat(max(0, grid.rows - 1)) * 10
+    /// Width-to-height of the tile block, spacing included, so the frame the
+    /// GeometryReader receives is already the right shape.
+    private var aspectRatio: CGFloat {
+        let columns = CGFloat(max(grid.columns, 1))
+        let rows = CGFloat(max(grid.rows, 1))
+        let width = columns * maximumTileSide + spacing * (columns - 1)
+        let height = rows * maximumTileSide + spacing * (rows - 1)
+        return width / height
+    }
+
+    private var maximumWidth: CGFloat {
+        let columns = CGFloat(max(grid.columns, 1))
+        return columns * maximumTileSide + spacing * (columns - 1)
     }
 
     @ViewBuilder

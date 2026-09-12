@@ -308,6 +308,7 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
             snapshot.totalStars += row.starsEarned
             if row.crystalEarned { snapshot.crystals.insert(row.world) }
             snapshot.muralTiles[row.world] = row.muralTilesPlaced
+            snapshot.replays[row.world] = row.replayCount
             // Rebuild the adaptive window from the compact history.
             for (index, accuracy) in row.recentAccuracy.enumerated() {
                 snapshot.recentResults.append(
@@ -348,6 +349,11 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
         let row = progressRow(for: child, world: result.world)
         // Levels only ever move forward — replaying an old level never
         // rewinds the map.
+        // A replay of a finished world advances the chapter rotation instead
+        // of the campaign, which is already complete there.
+        if row.crystalEarned, result.level > 0, !result.earnsCrystal {
+            row.replayCount += 1
+        }
         row.completedLevels = max(row.completedLevels, result.level)
         row.difficulty = nextDifficulty
         row.starsEarned += result.stars

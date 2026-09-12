@@ -101,7 +101,9 @@ final class PuzzleWorldsViewModel {
         do {
             let child = try dependencies.childRepository.activeChild()
             guard let run = try dependencies.startPuzzleRunUseCase.dailyRun(child: child, age: age) else { return }
-            DailyPuzzleLog.markDone(DailyPuzzleLog.dailyPuzzle)
+            // Marked done on *completion* (see PuzzleRunViewModel.finish) —
+            // starting and backing out must not burn the day's puzzle, and
+            // must not unlock the chest either.
             dependencies.appState.navigationPath.append(.puzzleRun(run))
         } catch {
             assertionFailure("Daily puzzle failed: \(error)")
@@ -117,7 +119,6 @@ final class PuzzleWorldsViewModel {
         do {
             let child = try dependencies.childRepository.activeChild()
             guard let run = try dependencies.startPuzzleRunUseCase.weekendRun(child: child, age: age) else { return }
-            DailyPuzzleLog.markDone(DailyPuzzleLog.weekend)
             dependencies.appState.navigationPath.append(.puzzleRun(run))
         } catch {
             assertionFailure("Weekend challenge failed: \(error)")
@@ -182,6 +183,18 @@ final class PuzzleWorldsViewModel {
     }
 
     func hasCrystal(_ world: PuzzleWorld) -> Bool { snapshot.hasCrystal(world) }
+
+    /// A finished world keeps playing — it just stops advancing the story.
+    func isReplaying(_ world: PuzzleWorld) -> Bool {
+        dependencies.puzzleProgressionEngine.isReplaying(world, snapshot: snapshot)
+    }
+
+    /// "Chapter 4 of 11", or "Play again" once the crystal is home.
+    func progressLabel(_ world: PuzzleWorld) -> String {
+        isReplaying(world)
+            ? String(localized: "Play again")
+            : String(localized: "Chapter \(nextLevel(world)) of \(world.levelCount)")
+    }
 
     func startTapped(_ world: PuzzleWorld) async {
         guard !isStarting, isUnlocked(world) else { return }
@@ -499,7 +512,7 @@ struct PuzzleWorldsView: View {
                     }
                     ForestProgressBar(
                         progress: viewModel.progress(world),
-                        label: String(localized: "Chapter \(viewModel.nextLevel(world)) of \(world.levelCount)")
+                        label: viewModel.progressLabel(world)
                     )
                     .padding(.horizontal, 4)
                 } else {

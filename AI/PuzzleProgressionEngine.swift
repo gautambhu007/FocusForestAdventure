@@ -147,6 +147,8 @@ struct PuzzleProgressSnapshot: Hashable, Sendable {
     var companionID: String = ""
     /// Mural tiles revealed per world (0…9).
     var muralTiles: [PuzzleWorld: Int] = [:]
+    /// Chapters replayed per world since its crystal was won.
+    var replays: [PuzzleWorld: Int] = [:]
 
     // Aggregate signals for the cognitive profile.
     var puzzlesAttempted: Int = 0
@@ -191,6 +193,7 @@ struct PuzzleProgressSnapshot: Hashable, Sendable {
     }
 
     func muralPlaced(_ world: PuzzleWorld) -> Int { muralTiles[world] ?? 0 }
+    func replayCount(_ world: PuzzleWorld) -> Int { replays[world] ?? 0 }
 
     /// Worlds whose mural still has room for a piece.
     var muralsInProgress: [PuzzleWorld] {
@@ -365,9 +368,23 @@ struct PuzzleProgressionEngine: Sendable {
         return String(localized: "Win the \(previous.crystal.localizedName) to open this!")
     }
 
-    /// The level to play next in a world (1-based), capped at its boss.
+    /// The level to play next in a world (1-based).
+    ///
+    /// Once the crystal is won the world doesn't stop: it cycles back
+    /// through its chapters, one per visit. Re-offering the boss forever
+    /// would turn a finished world into a dead end — and a child who has
+    /// just beaten it is exactly the one who wants to play it again.
     func nextLevel(in world: PuzzleWorld, snapshot: PuzzleProgressSnapshot) -> Int {
-        min(snapshot.completed(world) + 1, world.levelCount)
+        guard snapshot.hasCrystal(world) else {
+            return min(snapshot.completed(world) + 1, world.levelCount)
+        }
+        let chapters = max(1, world.story.chapters.count)
+        return (snapshot.replayCount(world) % chapters) + 1
+    }
+
+    /// Is this visit a replay of an already-finished world?
+    func isReplaying(_ world: PuzzleWorld, snapshot: PuzzleProgressSnapshot) -> Bool {
+        snapshot.hasCrystal(world)
     }
 
     /// Worlds the child may pick a daily puzzle from.

@@ -965,6 +965,35 @@ final class PuzzleProgressionEngineTests: XCTestCase {
         XCTAssertEqual(engine.nextLevel(in: .forest, snapshot: snapshot), 8)
         snapshot.completedLevels[.forest] = PuzzleWorld.forest.levelCount
         XCTAssertEqual(engine.nextLevel(in: .forest, snapshot: snapshot), PuzzleWorld.forest.levelCount)
+        XCTAssertFalse(engine.isReplaying(.forest, snapshot: snapshot))
+    }
+
+    /// A finished world must not become a dead end that re-offers its boss
+    /// forever — it cycles back through its chapters.
+    func testAFinishedWorldCyclesItsChapters() {
+        var snapshot = PuzzleProgressSnapshot()
+        snapshot.completedLevels[.forest] = PuzzleWorld.forest.levelCount
+        snapshot.crystals = [.forest]
+        let chapters = PuzzleWorld.forest.story.chapters.count
+
+        XCTAssertTrue(engine.isReplaying(.forest, snapshot: snapshot))
+        XCTAssertEqual(engine.nextLevel(in: .forest, snapshot: snapshot), 1,
+                       "a finished world starts over at chapter one")
+
+        snapshot.replays[.forest] = 3
+        XCTAssertEqual(engine.nextLevel(in: .forest, snapshot: snapshot), 4)
+
+        snapshot.replays[.forest] = chapters
+        XCTAssertEqual(engine.nextLevel(in: .forest, snapshot: snapshot), 1, "and wraps around")
+
+        // Never the boss again, whatever the count.
+        for replays in 0...(chapters * 2) {
+            snapshot.replays[.forest] = replays
+            XCTAssertLessThanOrEqual(
+                engine.nextLevel(in: .forest, snapshot: snapshot), chapters,
+                "a replay must never land on the boss"
+            )
+        }
     }
 
     // MARK: Badges
@@ -1353,6 +1382,36 @@ final class PuzzleRepositoryTests: XCTestCase {
         let after = try repository.placeMuralPiece(in: .forest, for: child)
         XCTAssertFalse(after.placed)
         XCTAssertEqual(try repository.snapshot(for: child).pieces, 1, "the spare piece is kept")
+    }
+
+    /// Replaying a finished world advances the chapter rotation without
+    /// touching the campaign, and never re-awards the crystal.
+    func testReplayingAFinishedWorldRotatesChaptersOnly() throws {
+        let (context, child) = try makeContext()
+        let repository = SwiftDataPuzzleRepository(context: context)
+        let engine = PuzzleProgressionEngine()
+        let world = PuzzleWorld.forest
+
+        _ = try repository.record(
+            engine.makeResult(world: world, level: world.bossLevel, difficulty: 3,
+                              attempts: attempts(count: 8), isBoss: true),
+            nextDifficulty: 3, for: child
+        )
+        let afterBoss = try repository.snapshot(for: child)
+        XCTAssertTrue(afterBoss.hasCrystal(world))
+        XCTAssertEqual(engine.nextLevel(in: world, snapshot: afterBoss), 1)
+
+        // Play chapter 1 again.
+        _ = try repository.record(
+            engine.makeResult(world: world, level: 1, difficulty: 3, attempts: attempts(count: 5)),
+            nextDifficulty: 3, for: child
+        )
+        let afterReplay = try repository.snapshot(for: child)
+        XCTAssertEqual(afterReplay.replayCount(world), 1)
+        XCTAssertEqual(engine.nextLevel(in: world, snapshot: afterReplay), 2, "on to the next chapter")
+        XCTAssertEqual(afterReplay.completed(world), world.levelCount, "the campaign stays finished")
+        XCTAssertTrue(afterReplay.hasCrystal(world))
+        XCTAssertGreaterThan(afterReplay.gems, 0, "replays still pay")
     }
 
     func testCompanionMustBeOwned() throws {
@@ -1752,6 +1811,25 @@ final class PuzzleDailyEngineTests: XCTestCase {
             engine.weekendChallengeCount(difficulty: 1)
         )
         XCTAssertEqual(engine.weekendBonusMultiplier(), 2)
+    }
+
+    @MainActor
+    func testDailyFlagsArePrunedToTheLastFewDays() {
+        let today = Date(timeIntervalSince1970: 1_800_000_000)
+        let longAgo = today.addingTimeInterval(-30 * 86_400)
+
+        DailyPuzzleLog.markDone(DailyPuzzleLog.dailyPuzzle, on: longAgo)
+        DailyPuzzleLog.markDone(DailyPuzzleLog.dailyPuzzle, on: today)
+
+        XCTAssertTrue(DailyPuzzleLog.isDone(DailyPuzzleLog.dailyPuzzle, on: today))
+        XCTAssertFalse(
+            DailyPuzzleLog.isDone(DailyPuzzleLog.dailyPuzzle, on: longAgo),
+            "month-old flags should have been swept up"
+        )
+
+        let leftovers = UserDefaults.standard.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix("puzzle.daily.") }
+        XCTAssertLessThanOrEqual(leftovers.count, 9, "at most three days of flags are kept")
     }
 
     func testActivitiesReportTodaysAndTomorrowsReward() {
