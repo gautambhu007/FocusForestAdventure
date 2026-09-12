@@ -132,7 +132,11 @@ struct RootView: View {
         case .wordSearchHub:
             WordSearchHubView(viewModel: WordSearchHubViewModel(dependencies: dependencies))
         case .wordSearchSheet(let number):
+            // "Next Level" swaps the top of the path for the next sheet in
+            // one assignment; without an identity SwiftUI updates this view
+            // in place and its @State view model keeps the finished sheet.
             WordSearchPlayView(viewModel: WordSearchPlayViewModel(sheetNumber: number, dependencies: dependencies))
+                .id(number)
         case .listeningHub:
             ListeningHubView(viewModel: ListeningHubViewModel(dependencies: dependencies))
         case .listeningMyWords:

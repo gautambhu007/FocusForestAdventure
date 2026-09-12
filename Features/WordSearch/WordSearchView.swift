@@ -577,12 +577,18 @@ struct WordSearchPlayView: View {
 
     // MARK: Celebration
 
+    /// The confetti is a `UIViewRepresentable` whose ideal width is the
+    /// animation's own, wider than a phone. Left unconstrained it grew the
+    /// whole layer past the screen, the layer sat at the leading edge, and
+    /// everything centred in it — the Next Level button included — moved
+    /// right of where it was drawn. Hence the fixed width and the pin.
     private var celebration: some View {
         ZStack {
             Color.black.opacity(0.25).ignoresSafeArea()
             VStack(spacing: 14) {
                 LottieView(animation: .confettiBig, loopMode: .playOnce)
-                    .frame(height: 120)
+                    .frame(width: 240, height: 120)
+                    .clipped()
                     .accessibilityHidden(true)
                 Text(String(localized: "GREAT JOB!"))
                     .font(ForestTheme.Fonts.hero)
@@ -609,9 +615,11 @@ struct WordSearchPlayView: View {
                     .foregroundStyle(ForestTheme.Colors.deepGreen)
             }
             .padding(28)
+            .frame(maxWidth: 420)
             .forestCard()
             .padding(ForestTheme.Metrics.screenPadding)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .transition(.opacity)
     }
 }
