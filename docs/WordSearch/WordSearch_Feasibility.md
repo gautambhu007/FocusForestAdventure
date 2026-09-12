@@ -25,9 +25,9 @@ fast-forwarded from `feature/puzzle-quest`. What holds each one:
 scene — 21 in the forest's places, 19 in `WordSearchPaintedScene`'s twelve
 code-painted families (ocean, farm, prehistoric, city, beach, winter,
 tropical, savanna, arctic, robot, construction, railway). What remains:
-1. **Generated art** via `tools/wordhunt_art.py` once `OPENAI_API_KEY` is in
-   `~/.zshrc` — sheet 7 first, approve, then batch. Painted `WS_ENV_nn`
-   image sets replace the code scenes one sheet at a time.
+1. **Scenes** — 40 `WS_ENV_nn` images, each generated as its own full-size
+   image (≥1024 wide, portrait, no label) from `Prompts.md`; the first batch
+   was a labelled contact grid and was rejected. Mascots are done.
 2. **The 10×10 touch size on phones** — a decision from watching a child play
    sheet 31+.
 Move this pointer when one of them lands.
@@ -63,9 +63,12 @@ word bank. A generator script for the OpenAI Images API exists at
 `tools/wordhunt_art.py` (untracked) for when an API key is in the profile.
 
 **Open — not engineering:**
-- **The art itself** — 4 of 320 mascot poses, 0 of 40 painted `WS_ENV` scenes
-  (all 40 have a code-painted one), 6 of 249 word pictures exist. Drop image
-  sets in per the contract; nothing else changes.
+- **The art itself** — **40 of 40 idle mascots** (generated 2026-09-12, one pose
+  each; the other 7 states are optional), 0 of 40 painted `WS_ENV` scenes (all
+  40 have a code-painted one; a first generated batch was rejected — cut from
+  a labelled grid at 171px with the filename baked in — scenes must be one
+  full-size image per prompt), 6 of 249 word pictures. Drop image sets in per
+  the contract; nothing else changes.
 - **Touch size on 10×10 phones** — the spec wants 48pt, the phone gives ~31pt
   with drag-to-line snapping. Decide after watching a child play sheet 31+.
 - **Stars earned before `6c905cb`** lived in `UserDefaults` and were not migrated
