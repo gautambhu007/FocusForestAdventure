@@ -250,6 +250,14 @@ final class WordSearchPlayViewModel {
         return Self.ribbon[index % Self.ribbon.count]
     }
 
+    /// What the voice says after the word. Rotates through the list so
+    /// a sheet of eight words hears eight different cheers.
+    static let cheers: [String] = [
+        String(localized: "Yay!"), String(localized: "Well done!"), String(localized: "You found it!"),
+        String(localized: "Great job!"), String(localized: "Hooray!"), String(localized: "Super!"),
+        String(localized: "Brilliant!"), String(localized: "Nice one!"),
+    ]
+
     private static let ribbon: [Color] = [
         ForestTheme.Colors.leafGreen, ForestTheme.Colors.skyBlue, ForestTheme.Colors.sunshine,
         ForestTheme.Colors.bubblegum, ForestTheme.Colors.lavender, ForestTheme.Colors.peach,
@@ -314,14 +322,12 @@ final class WordSearchPlayViewModel {
         dependencies.soundEngine.play(.correctChime)
         dependencies.hapticsService.playSuccess()
         // Read the word out while the character does its lap — lowercase,
-        // so the voice says "seed" rather than spelling S-E-E-D.
-        Task { await speech.speak(word.lowercased()) }
-        // A "ping!" for each footfall of the lap.
-        for landing in WordSearchLapTiming.landings {
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(Int(landing * 1000)))
-                dependencies.soundEngine.play(.ping)
-            }
+        // so the voice says "seed" rather than spelling S-E-E-D — then a
+        // cheer. The synthesiser queues, so the cheer follows the word.
+        let cheer = Self.cheers[foundWords.count % Self.cheers.count]
+        Task {
+            await speech.speak(word.lowercased())
+            await speech.speak(cheer)
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(600))

@@ -162,24 +162,15 @@ struct WordSearchMascotView: View {
 
 // MARK: - The victory lap
 
-/// How long each leg of the lap takes, in seconds. Total ≈ 2.6s: slower
-/// than the brief's 0.5–1.0s on purpose — Gautam found the quick version
-/// frustrating to watch, and a child has just done something good.
+/// How long each leg of the lap takes, in seconds. Total ≈ 4s: the first
+/// cut at 1.65s was too quick to follow and 2.6s still was, so each leg
+/// is unhurried and the character pauses at the corners so a child can
+/// see where it went before it goes on.
 enum WordSearchLapTiming {
-    static let run = 0.9, drop = 0.6, home = 1.1
-    static var total: Double { run + drop + home }
-    /// When the two footfalls happen — the landing at the bottom-left and
-    /// the landing back home — for the "ping!" that goes with them.
-    static var landings: [Double] { [run + drop * 0.85, total] }
+    static let run = 1.3, restLeft = 0.3, drop = 0.9, restBottom = 0.35, home = 1.3
+    static var total: Double { run + restLeft + drop + restBottom + home }
 }
 
-/// The found-word reaction, as Gautam described it: the character runs
-/// from its corner along the top of the panel to the left, hops down to
-/// the bottom-left corner, then takes one big diagonal hop back up to
-/// the top-right corner where it sat. Keyed on the play view model's
-/// `sparkleTrigger`; pass 0 as the trigger under Reduce Motion and it
-/// never moves. `runDistance` is how far left the top-left corner is,
-/// `dropDistance` how far down the bottom edge is.
 struct WordSearchMascotHop<Content: View>: View {
     let trigger: Int
     let runDistance: CGFloat
@@ -194,9 +185,10 @@ struct WordSearchMascotHop<Content: View>: View {
         var facing: CGFloat = 1
     }
 
-    /// Timing of the three legs, in seconds.
     private var run: Double { WordSearchLapTiming.run }
+    private var restLeft: Double { WordSearchLapTiming.restLeft }
     private var drop: Double { WordSearchLapTiming.drop }
+    private var restBottom: Double { WordSearchLapTiming.restBottom }
     private var home: Double { WordSearchLapTiming.home }
 
     var body: some View {
@@ -207,36 +199,38 @@ struct WordSearchMascotHop<Content: View>: View {
                 .offset(x: lap.x, y: lap.y)
         } keyframes: { _ in
             KeyframeTrack(\.x) {
-                CubicKeyframe(left, duration: run)                  // run left along the top
-                LinearKeyframe(left, duration: drop)                // stay in the left column
-                CubicKeyframe(0, duration: home)                    // diagonal hop home
+                CubicKeyframe(left, duration: run)                       // run left along the top
+                LinearKeyframe(left, duration: restLeft + drop + restBottom) // stay in the left column
+                CubicKeyframe(0, duration: home)                         // diagonal hop home
             }
             KeyframeTrack(\.y) {
-                // Little bobs while running, so it reads as steps.
-                CubicKeyframe(-8, duration: run * 0.25)
-                CubicKeyframe(0, duration: run * 0.25)
-                CubicKeyframe(-8, duration: run * 0.25)
-                CubicKeyframe(0, duration: run * 0.25)
-                // Hop down: a small lift, then the fall, then a landing bounce.
-                CubicKeyframe(-24, duration: drop * 0.3)
+                // Six little bobs while running, so it reads as steps.
+                CubicKeyframe(-10, duration: run / 6); CubicKeyframe(0, duration: run / 6)
+                CubicKeyframe(-10, duration: run / 6); CubicKeyframe(0, duration: run / 6)
+                CubicKeyframe(-10, duration: run / 6); CubicKeyframe(0, duration: run / 6)
+                LinearKeyframe(0, duration: restLeft)                    // a breath at the corner
+                // Hop down: a lift, then the fall, then a landing bounce.
+                CubicKeyframe(-30, duration: drop * 0.3)
                 CubicKeyframe(bottom, duration: drop * 0.55)
-                CubicKeyframe(bottom - 10, duration: drop * 0.15)
+                CubicKeyframe(bottom - 12, duration: drop * 0.15)
+                LinearKeyframe(bottom, duration: restBottom)             // land, settle, look up
                 // The big diagonal: up over an arc and down onto the corner.
-                CubicKeyframe(bottom * 0.3 - 60, duration: home * 0.5)
+                CubicKeyframe(bottom * 0.3 - 70, duration: home * 0.5)
                 SpringKeyframe(0, duration: home * 0.5, spring: .bouncy)
             }
             KeyframeTrack(\.facing) {
                 LinearKeyframe(-1, duration: 0.05)                       // turn to run left
-                LinearKeyframe(-1, duration: run + drop - 0.05)
+                LinearKeyframe(-1, duration: run + restLeft + drop - 0.05)
                 LinearKeyframe(1, duration: 0.05)                        // turn for the hop home
-                LinearKeyframe(1, duration: home - 0.05)
+                LinearKeyframe(1, duration: restBottom + home - 0.05)
             }
             KeyframeTrack(\.scale) {
-                CubicKeyframe(1.18, duration: run * 0.3)             // grows a little as it sets off
-                LinearKeyframe(1.18, duration: run * 0.7)
-                CubicKeyframe(1.05, duration: drop * 0.85)           // squash on landing
+                CubicKeyframe(1.18, duration: run * 0.3)                 // grows a little as it sets off
+                LinearKeyframe(1.18, duration: run * 0.7 + restLeft)
+                CubicKeyframe(1.05, duration: drop * 0.85)               // squash on landing
                 CubicKeyframe(1.22, duration: drop * 0.15)
-                CubicKeyframe(1.35, duration: home * 0.5)            // biggest at the top of the arc
+                LinearKeyframe(1.22, duration: restBottom)
+                CubicKeyframe(1.35, duration: home * 0.5)                // biggest at the top of the arc
                 SpringKeyframe(1, duration: home * 0.5, spring: .bouncy)
             }
         }
@@ -266,8 +260,23 @@ struct WordSearchWordPicture: View {
 /// palette has one of the two — the palette's gradient.
 struct WordSearchSceneBackground: View {
     let sheet: WordSearchSheet
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        ZStack {
+            scene
+                // A slow breath — the scene eases in and out by 3% over
+                // twelve seconds — so the page is never quite still.
+                .modifier(SceneBreath(active: !reduceMotion))
+            if !reduceMotion {
+                SceneMotes(palette: sheet.palette, seed: sheet.number)
+            }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var scene: some View {
         if let painted = WordSearchArt.scene(sheet: sheet.number) {
             painted
                 .resizable()
@@ -281,5 +290,79 @@ struct WordSearchSceneBackground: View {
             LinearGradient(colors: [sheet.palette.tint.opacity(0.55), ForestTheme.Colors.cloudWhite],
                            startPoint: .top, endPoint: .bottom)
         }
+    }
+}
+
+private struct SceneBreath: ViewModifier {
+    let active: Bool
+    @State private var swelled = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(swelled ? 1.03 : 1.0, anchor: .center)
+            .offset(x: swelled ? -4 : 4)
+            .onAppear {
+                guard active else { return }
+                withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+                    swelled = true
+                }
+            }
+    }
+}
+
+/// A few slow motes drifting over the scene: bubbles rising through the
+/// sea, snow falling in winter, leaves and petals elsewhere. Cheap — one
+/// timeline canvas — and deliberately sparse so the puzzle stays the thing.
+private struct SceneMotes: View {
+    let palette: WordSearchPalette
+    let seed: Int
+
+    private struct Mote {
+        var x: Double, phase: Double, speed: Double, size: Double, sway: Double
+    }
+
+    private var motes: [Mote] {
+        var state = UInt64(seed) &* 2_654_435_761 &+ 11
+        func unit() -> Double {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return Double((state >> 33) & 0xFFFFFF) / Double(0xFFFFFF)
+        }
+        return (0..<14).map { _ in
+            Mote(x: unit(), phase: unit(), speed: 0.35 + unit() * 0.5, size: 4 + unit() * 7, sway: 10 + unit() * 18)
+        }
+    }
+
+    private var rising: Bool { palette == .ocean }
+    private var color: Color {
+        switch palette {
+        case .ocean, .river, .arctic: .white
+        case .winter: .white
+        case .space, .cave: .white
+        case .meadow, .fantasy, .celebration: ForestTheme.Colors.bubblegum
+        case .autumn, .harvest: ForestTheme.Colors.peach
+        default: ForestTheme.Colors.sunshine
+        }
+    }
+    private var round: Bool { [.ocean, .winter, .space, .cave, .arctic, .river].contains(palette) }
+
+    var body: some View {
+        let motes = motes
+        TimelineView(.animation(minimumInterval: 1 / 20)) { timeline in
+            Canvas { context, size in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                for mote in motes {
+                    // 0…1 down the screen over ~1/speed × 40 seconds; bubbles run the other way.
+                    var progress = ((t * mote.speed / 40) + mote.phase).truncatingRemainder(dividingBy: 1)
+                    if rising { progress = 1 - progress }
+                    let y = progress * (size.height + 40) - 20
+                    let x = mote.x * size.width + sin(t * 0.6 + mote.phase * 6) * mote.sway
+                    let rect = CGRect(x: x, y: y, width: mote.size, height: round ? mote.size : mote.size * 0.6)
+                    let shape = round ? Path(ellipseIn: rect) : Path(roundedRect: rect, cornerRadius: mote.size * 0.3)
+                    context.opacity = 0.55
+                    context.fill(shape, with: .color(color))
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

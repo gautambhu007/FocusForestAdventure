@@ -533,19 +533,28 @@ final class WordSearchPlayViewModelTests: XCTestCase {
         func refreshVoice() {}
     }
 
-    func testAFoundWordIsReadOutInLowercaseSoItIsSaidNotSpelled() async throws {
+    func testAFoundWordIsReadOutThenCheered() async throws {
         let spy = SpeechSpy()
         let viewModel = WordSearchPlayViewModel(sheetNumber: 1, dependencies: deps, seed: 11, speech: spy)
         let placement = viewModel.puzzle.placements[0]
         drag(viewModel, [placement.cells.first!, placement.cells.last!])
         try await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(spy.spoken, [placement.word.lowercased()])
+        XCTAssertEqual(spy.spoken.first, placement.word.lowercased(), "the word comes first")
+        XCTAssertEqual(spy.spoken.count, 2, "then a cheer")
+        XCTAssertTrue(WordSearchPlayViewModel.cheers.contains(spy.spoken[1]), "\(spy.spoken[1]) is not a cheer")
 
         // A wrong drag says nothing; a repeat find says nothing again.
         drag(viewModel, [WordSearchCell(row: 0, column: 0), WordSearchCell(row: 0, column: 1)])
         drag(viewModel, [placement.cells.first!, placement.cells.last!])
         try await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(spy.spoken.count, 1)
+        XCTAssertEqual(spy.spoken.count, 2)
+
+        // The next word gets a different cheer.
+        let second = viewModel.puzzle.placements[1]
+        drag(viewModel, [second.cells.first!, second.cells.last!])
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(spy.spoken.count, 4)
+        XCTAssertNotEqual(spy.spoken[1], spy.spoken[3])
     }
 
     func testACrossingCellKeepsTheColourOfTheWordFoundFirst() {
