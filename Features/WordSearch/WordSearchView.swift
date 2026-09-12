@@ -509,9 +509,15 @@ struct WordSearchPlayView: View {
             .padding(viewModel.puzzle.size >= 9 ? 6 : 12)
             .forestCard(cornerRadius: 22)
             .overlay(alignment: .topTrailing) {
-                WordSearchMascotView(sheet: viewModel.sheet, state: viewModel.mascotState)
+                GeometryReader { panel in
+                    WordSearchMascotHop(trigger: reduceMotion ? 0 : viewModel.sparkleTrigger,
+                                        dropDistance: panel.size.height - 40) {
+                        WordSearchMascotView(sheet: viewModel.sheet, state: viewModel.mascotState)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topTrailing)
                     .offset(x: 10, y: -40)
                     .floating(amplitude: 4, period: 3)
+                }
             }
             .padding(.top, 16)
     }

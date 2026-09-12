@@ -137,9 +137,10 @@ struct WordSearchMascotView: View {
         .accessibilityHidden(true)
     }
 
-    /// What the emoji does in each state until a rigged character does it
-    /// properly: a hop for a found word, a big bounce to celebrate, a
-    /// small tilt to encourage, a lean toward the grid for a hint.
+    /// What the character does in each state until a rigged one does it
+    /// properly: a big bounce to celebrate, a small tilt to encourage, a
+    /// lean toward the grid for a hint. The found-word hop is a separate
+    /// keyframe animation (`WordSearchMascotHop`) because it travels.
     private struct Motion {
         var scale: CGFloat = 1
         var tilt: Angle = .zero
@@ -151,9 +152,57 @@ struct WordSearchMascotView: View {
         switch state {
         case .idle, .look: return Motion()
         case .point, .hint: return Motion(scale: 1.05, tilt: .degrees(-12), lift: 2)
-        case .wordFound, .happy: return Motion(scale: 1.25, lift: -10)
+        case .wordFound: return Motion()                      // the hop animation carries this one
+        case .happy: return Motion(scale: 1.25, lift: -10)
         case .celebrate: return Motion(scale: 1.4, tilt: .degrees(8), lift: -16)
         case .encourage: return Motion(scale: 0.95, tilt: .degrees(-6))
+        }
+    }
+}
+
+// MARK: - The hop
+
+/// The found-word reaction: the character springs up from its corner,
+/// drops to the panel's bottom edge, and flies back to where it sat.
+/// Keyed on the play view model's `sparkleTrigger`; pass 0 as the
+/// trigger under Reduce Motion and it never moves.
+struct WordSearchMascotHop<Content: View>: View {
+    let trigger: Int
+    /// How far down the bottom edge is from the character's resting spot.
+    let dropDistance: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    private struct Hop {
+        var y: CGFloat = 0
+        var scale: CGFloat = 1
+        var tilt: Double = 0
+    }
+
+    var body: some View {
+        KeyframeAnimator(initialValue: Hop(), trigger: trigger) { hop in
+            content()
+                .scaleEffect(hop.scale)
+                .rotationEffect(.degrees(hop.tilt))
+                .offset(y: hop.y)
+        } keyframes: { _ in
+            KeyframeTrack(\.y) {
+                SpringKeyframe(-36, duration: 0.22, spring: .bouncy)          // spring up
+                CubicKeyframe(max(0, dropDistance), duration: 0.34)           // drop to the bottom edge
+                CubicKeyframe(max(0, dropDistance) - 8, duration: 0.10)       // a little bounce on landing
+                SpringKeyframe(0, duration: 0.55, spring: .smooth)            // fly home
+            }
+            KeyframeTrack(\.scale) {
+                SpringKeyframe(1.25, duration: 0.22, spring: .bouncy)
+                CubicKeyframe(1.0, duration: 0.34)
+                CubicKeyframe(1.12, duration: 0.10)
+                SpringKeyframe(1.0, duration: 0.55, spring: .smooth)
+            }
+            KeyframeTrack(\.tilt) {
+                CubicKeyframe(-10, duration: 0.22)
+                CubicKeyframe(8, duration: 0.34)
+                CubicKeyframe(-4, duration: 0.10)
+                CubicKeyframe(0, duration: 0.55)
+            }
         }
     }
 }
