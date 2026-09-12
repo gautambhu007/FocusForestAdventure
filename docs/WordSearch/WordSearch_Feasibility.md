@@ -18,7 +18,7 @@ fast-forwarded from `feature/puzzle-quest`. What holds each one:
 | 3 Play screen | `a6a0ebc` | `WordSearchPlayViewModelTests` — 11 finger-style tests (drag, snap, hints, stars, finish, replay, crossing colour) |
 | 4 Progress + dashboard | `6c905cb` | `WordSearchSnapshotTests`, `WordSearchRepositoryTests` — per-child `WordSearchRecord` rows, read-back through a fresh context |
 | 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
-| 7 Code-painted scenes | see git log | `testEverySheetHasAPaintedSceneFromOneSourceOrTheOther` — 21 forest + 19 painted, exactly one source per sheet, every family used; all twelve rendered and three sheets checked on screen |
+| 7 Code-painted scenes | `a452c28` | `testEverySheetHasAPaintedSceneFromOneSourceOrTheOther` — 21 forest + 19 painted, exactly one source per sheet, every family used; all twelve rendered and three sheets checked on screen |
 | 6 Art contract | `8ca14d5` | `WordSearchArtTests` — names unique and catalog-safe across all 609 assets, missing asset is nil, 21 painted places; `testTheMascotFollowsPlay` |
 
 **START HERE for the next session:** every sheet now stands on a painted
