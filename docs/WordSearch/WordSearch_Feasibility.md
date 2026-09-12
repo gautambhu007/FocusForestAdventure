@@ -18,6 +18,7 @@ fast-forwarded from `feature/puzzle-quest`. What holds each one:
 | 3 Play screen | `a6a0ebc` | `WordSearchPlayViewModelTests` — 11 finger-style tests (drag, snap, hints, stars, finish, replay, crossing colour) |
 | 4 Progress + dashboard | `6c905cb` | `WordSearchSnapshotTests`, `WordSearchRepositoryTests` — per-child `WordSearchRecord` rows, read-back through a fresh context |
 | 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
+| 8 Found-word lap + read-aloud | `429f89e` | `testAFoundWordIsReadOutInLowercaseSoItIsSpoken` (speech spy: one utterance per find, none for a miss or repeat); the lap itself is a `KeyframeAnimator` checked by eye in the simulator |
 | 7 Code-painted scenes | `a452c28` | `testEverySheetHasAPaintedSceneFromOneSourceOrTheOther` — 21 forest + 19 painted, exactly one source per sheet, every family used; all twelve rendered and three sheets checked on screen |
 | 6 Art contract | `8ca14d5` | `WordSearchArtTests` — names unique and catalog-safe across all 609 assets, missing asset is nil, 21 painted places; `testTheMascotFollowsPlay` |
 
@@ -36,7 +37,22 @@ tropical, savanna, arctic, robot, construction, railway). What remains:
    only 9 words that exist in the game.
 2. **The 10×10 touch size on phones** — a decision from watching a child play
    sheet 31+.
+3. **Progress loss without iCloud** (found walking the simulator, `516570c`):
+   a child profile and 1/40 ⭐⭐⭐ vanished between two launches a few minutes
+   apart on a simulator with no iCloud account. The store in use is the App
+   Group one (`groupContainer: .automatic`); CloudKit mirroring fails every
+   launch with `CKAccountStatusNoAccount`. Not Word Hunt's code, but it is
+   Word Hunt's stars that go. Likely fix: a local-only `ModelConfiguration`
+   when there is no iCloud account. A task chip carries the evidence.
 Move this pointer when one of them lands.
+
+**Fixed while walking the simulator (`516570c`):** Next Level did nothing —
+`nextTapped` swaps the top of the navigation path in one assignment and
+SwiftUI kept the old `@State` view model; the destination now carries
+`.id(number)`. And the completion card sat ~46pt right of centre because the
+confetti `LottieView` reports its animation's width as ideal; it has a fixed
+width now and the overlay is pinned. The second one predated the day's work
+and a render had shown it without anyone noticing.
 
 **Measured, not planned:** 249 target words (the brief's "~320" was 8 × 40; the
 stage-1 sheets legitimately carry 4). Grid sizes are the smallest stage size
