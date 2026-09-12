@@ -329,12 +329,20 @@ final class WordSearchArtTests: XCTestCase {
         XCTAssertNil(WordSearchArt.wordPicture("NOT_A_WORD"))
     }
 
-    func testTheForestAlreadyPaintsAScenceForAboutHalfTheSheets() {
-        let painted = WordSearchWordBank.sheets.filter { $0.palette.forestPlace != nil }
+    func testEverySheetHasAPaintedSceneFromOneSourceOrTheOther() {
+        let forest = WordSearchWordBank.sheets.filter { $0.palette.forestPlace != nil }
+        let painted = WordSearchWordBank.sheets.filter { $0.palette.paintedScene != nil }
         // Documented in docs/WordSearch/ArtContract.md; keep the two in step.
-        XCTAssertEqual(painted.count, 21, "sheets with a forest place: \(painted.map(\.number))")
-        XCTAssertTrue(painted.contains { $0.number == 7 }, "Enchanted Forest stands in the deep woods")
-        XCTAssertNil(WordSearchWordBank.sheets[2].palette.forestPlace, "Ocean Friends has no forest to stand in")
+        XCTAssertEqual(forest.count, 21, "sheets with a forest place: \(forest.map(\.number))")
+        XCTAssertEqual(painted.count, 19, "sheets with a code-painted scene: \(painted.map(\.number))")
+        XCTAssertTrue(forest.contains { $0.number == 7 }, "Enchanted Forest stands in the deep woods")
+        XCTAssertEqual(WordSearchWordBank.sheets[2].palette.paintedScene, .ocean, "Ocean Friends is painted as an ocean")
+        for sheet in WordSearchWordBank.sheets {
+            XCTAssertTrue((sheet.palette.forestPlace != nil) != (sheet.palette.paintedScene != nil),
+                          "sheet \(sheet.number) must have exactly one scene source")
+        }
+        XCTAssertEqual(Set(painted.compactMap(\.palette.paintedScene)).count, WordSearchSceneFamily.allCases.count,
+                       "every painted family is used by some sheet")
     }
 }
 

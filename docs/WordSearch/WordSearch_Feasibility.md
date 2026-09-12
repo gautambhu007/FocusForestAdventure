@@ -18,20 +18,17 @@ fast-forwarded from `feature/puzzle-quest`. What holds each one:
 | 3 Play screen | `a6a0ebc` | `WordSearchPlayViewModelTests` — 11 finger-style tests (drag, snap, hints, stars, finish, replay, crossing colour) |
 | 4 Progress + dashboard | `6c905cb` | `WordSearchSnapshotTests`, `WordSearchRepositoryTests` — per-child `WordSearchRecord` rows, read-back through a fresh context |
 | 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
+| 7 Code-painted scenes | see git log | `testEverySheetHasAPaintedSceneFromOneSourceOrTheOther` — 21 forest + 19 painted, exactly one source per sheet, every family used; all twelve rendered and three sheets checked on screen |
 | 6 Art contract | `8ca14d5` | `WordSearchArtTests` — names unique and catalog-safe across all 609 assets, missing asset is nil, 21 painted places; `testTheMascotFollowsPlay` |
 
-**START HERE for the next session:** the study's slices are done and the art
-contract is proven with real assets (`b3f9d80`). What remains, in order of
-value per effort:
-1. **Code-painted scenes** for the 19 sheets still on a gradient (ocean ×5,
-   farm ×2, prehistoric ×2, city ×2, beach ×2, winter, tropical ×2, savanna,
-   arctic, robot, construction, railway) — the way `ForestSceneBackground`
-   paints the forest. Kenney's Fish Pack tiles (seaweed, rocks, bubbles, sand;
-   CC0, in the scratchpad or re-downloadable) are ready-made parts for the
-   ocean family. Engineering, ~1 day for a family of painters.
-2. **Generated art** via `tools/wordhunt_art.py` once `OPENAI_API_KEY` is in
-   `~/.zshrc` — sheet 7 first, approve, then batch.
-3. **The 10×10 touch size on phones** — a decision from watching a child play
+**START HERE for the next session:** every sheet now stands on a painted
+scene — 21 in the forest's places, 19 in `WordSearchPaintedScene`'s twelve
+code-painted families (ocean, farm, prehistoric, city, beach, winter,
+tropical, savanna, arctic, robot, construction, railway). What remains:
+1. **Generated art** via `tools/wordhunt_art.py` once `OPENAI_API_KEY` is in
+   `~/.zshrc` — sheet 7 first, approve, then batch. Painted `WS_ENV_nn`
+   image sets replace the code scenes one sheet at a time.
+2. **The 10×10 touch size on phones** — a decision from watching a child play
    sheet 31+.
 Move this pointer when one of them lands.
 
@@ -66,9 +63,9 @@ word bank. A generator script for the OpenAI Images API exists at
 `tools/wordhunt_art.py` (untracked) for when an API key is in the profile.
 
 **Open — not engineering:**
-- **The art itself** — 4 of 320 mascot poses, 0 of 40 scenes, 6 of 249 word
-  pictures exist. Drop image sets in per the contract; nothing else changes.
-  The next cheap win is code-painted scenes for the 19 sheets on a gradient.
+- **The art itself** — 4 of 320 mascot poses, 0 of 40 painted `WS_ENV` scenes
+  (all 40 have a code-painted one), 6 of 249 word pictures exist. Drop image
+  sets in per the contract; nothing else changes.
 - **Touch size on 10×10 phones** — the spec wants 48pt, the phone gives ~31pt
   with drag-to-line snapping. Decide after watching a child play sheet 31+.
 - **Stars earned before `6c905cb`** lived in `UserDefaults` and were not migrated

@@ -13,7 +13,7 @@ to `Resources/Assets.xcassets`. Nothing else is edited.
 | Layer | Asset name | Today's fallback | Notes |
 |---|---|---|---|
 | Mascot pose | `WS_CHAR_<nn>_<State>` | the sheet's emoji, moved per state | `<nn>` is the two-digit sheet number. If only `_Idle` exists it is shown in every state |
-| Scene | `WS_ENV_<nn>` | a painted forest place for 21 sheets (see table), the palette's gradient for the rest | Drawn `scaledToFill` behind the whole page with a 25% cream wash for legibility |
+| Scene | `WS_ENV_<nn>` | a painted forest place for 21 sheets, a scene painted in code (`WordSearchPaintedScene`) for the other 19 — see table | Drawn `scaledToFill` behind the whole page with a 25% cream wash for legibility |
 | Word picture | `WS_WORD_<WORD>` | the word's emoji | Shown at 28×28pt beside the word in WORDS TO FIND |
 
 ### Mascot states (brief §13)
@@ -50,38 +50,38 @@ for a four-year-old (brief §9): 🐝 BEE, not BEE.
 | # | Title | Stage | Mascot today + suggestion (brief §10) | Scene | Words |
 |---|---|---|---|---|---|
 | 01 | Sunny Garden | 1 | 🐰 bunny gardener | forest `meadow` today | 4 |
-| 02 | Friendly Farm | 1 | 🐄 calf | gradient today | 4 |
-| 03 | Ocean Friends | 1 | 🐬 dolphin | gradient today | 4 |
-| 04 | Dinosaur Valley | 1 | 🦕 baby triceratops | gradient today | 4 |
+| 02 | Friendly Farm | 1 | 🐄 calf | painted `farm` today | 4 |
+| 03 | Ocean Friends | 1 | 🐬 dolphin | painted `ocean` today | 4 |
+| 04 | Dinosaur Valley | 1 | 🦕 baby triceratops | painted `prehistoric` today | 4 |
 | 05 | Space Adventure | 1 | 👩‍🚀 young astronaut | forest `night` today | 4 |
 | 06 | Jungle Explorer | 1 | 🐵 monkey explorer | forest `deepWoods` today | 4 |
 | 07 | Enchanted Forest | 1 | 🦊 fox | forest `deepWoods` today | 4 |
-| 08 | Busy City | 1 | 🚦 traffic-light robot or bus driver | gradient today | 4 |
-| 09 | Beach Day | 1 | 🦀 | gradient today | 4 |
-| 10 | Winter Wonderland | 1 | 🐧 | gradient today | 4 |
+| 08 | Busy City | 1 | 🚦 traffic-light robot or bus driver | painted `city` today | 4 |
+| 09 | Beach Day | 1 | 🦀 | painted `beach` today | 4 |
+| 10 | Winter Wonderland | 1 | 🐧 | painted `winter` today | 4 |
 | 11 | Spring Meadow | 2 | 🐑 | forest `meadow` today | 6 |
-| 12 | Rainy Day | 2 | 🐸 | gradient today | 6 |
+| 12 | Rainy Day | 2 | 🐸 | painted `ocean` today | 6 |
 | 13 | Autumn Park | 2 | 🐿️ | forest `dusk` today | 6 |
-| 14 | Tropical Island | 2 | 🦜 | gradient today | 6 |
-| 15 | Safari Adventure | 2 | 🦒 | gradient today | 6 |
-| 16 | Arctic Adventure | 2 | 🐻‍❄️ | gradient today | 6 |
+| 14 | Tropical Island | 2 | 🦜 | painted `tropical` today | 6 |
+| 15 | Safari Adventure | 2 | 🦒 | painted `savanna` today | 6 |
+| 16 | Arctic Adventure | 2 | 🐻‍❄️ | painted `arctic` today | 6 |
 | 17 | Butterfly Garden | 2 | 🦋 | forest `meadow` today | 6 |
 | 18 | Bug Explorer | 2 | 🐛 | forest `deepWoods` today | 6 |
-| 19 | Bird Paradise | 2 | 🦜 | gradient today | 6 |
+| 19 | Bird Paradise | 2 | 🦜 | painted `tropical` today | 6 |
 | 20 | Woodland Camp | 2 | 🦝 | forest `deepWoods` today | 6 |
 | 21 | Mountain Adventure | 3 | 🐐 | forest `glade` today | 7 |
-| 22 | Underwater Adventure | 3 | 🐙 | gradient today | 7 |
-| 23 | Coral Reef | 3 | 🐠 | gradient today | 7 |
+| 22 | Underwater Adventure | 3 | 🐙 | painted `ocean` today | 7 |
+| 23 | Coral Reef | 3 | 🐠 | painted `ocean` today | 7 |
 | 24 | Space Station | 3 | 🤖 | forest `night` today | 7 |
-| 25 | Robot World | 3 | 🤖 little robot | gradient today | 7 |
-| 26 | Construction Zone | 3 | 👷 | gradient today | 7 |
-| 27 | Train Adventure | 3 | 🚂 | gradient today | 7 |
-| 28 | Airport Adventure | 3 | 🧑‍✈️ | gradient today | 6 |
+| 25 | Robot World | 3 | 🤖 little robot | painted `robot` today | 7 |
+| 26 | Construction Zone | 3 | 👷 | painted `construction` today | 7 |
+| 27 | Train Adventure | 3 | 🚂 | painted `railway` today | 7 |
+| 28 | Airport Adventure | 3 | 🧑‍✈️ | painted `city` today | 6 |
 | 29 | Magical Castle | 3 | 🧙 friendly dragon (or wizard) | forest `magicGrove` today | 7 |
 | 30 | Dragon Valley | 3 | 🐲 cute dragon | forest `magicGrove` today | 7 |
-| 31 | Pirate Island | 4 | 🦜 | gradient today | 8 |
+| 31 | Pirate Island | 4 | 🦜 | painted `beach` today | 8 |
 | 32 | Treasure Cave | 4 | 🦇 | forest `night` today | 8 |
-| 33 | Dinosaur Fossil Hunt | 4 | 🦖 | gradient today | 8 |
+| 33 | Dinosaur Fossil Hunt | 4 | 🦖 | painted `prehistoric` today | 8 |
 | 34 | Rainforest Adventure | 4 | 🦥 | forest `deepWoods` today | 8 |
 | 35 | River Adventure | 4 | 🦦 | forest `riverbank` today | 8 |
 | 36 | Farm Harvest | 4 | 🐓 | forest `dusk` today | 8 |

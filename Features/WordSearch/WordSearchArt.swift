@@ -175,8 +175,10 @@ struct WordSearchWordPicture: View {
 
 // MARK: - Scene
 
-/// What the page stands on: a painted scene for the sheet, else a place
-/// the forest already paints, else the palette's gradient.
+/// What the page stands on: a painted `WS_ENV_nn` for the sheet, else a
+/// place the forest already paints, else a scene painted in code for the
+/// theme (`WordSearchPaintedScene`), else — unreachable today, every
+/// palette has one of the two — the palette's gradient.
 struct WordSearchSceneBackground: View {
     let sheet: WordSearchSheet
 
@@ -188,6 +190,8 @@ struct WordSearchSceneBackground: View {
                 .overlay(ForestTheme.Colors.cloudWhite.opacity(0.25))
         } else if let place = sheet.palette.forestPlace {
             ForestSceneBackground(place: place, legibility: 0.4)
+        } else if let family = sheet.palette.paintedScene {
+            WordSearchPaintedScene(family: family, seed: sheet.number, legibility: 0.3)
         } else {
             LinearGradient(colors: [sheet.palette.tint.opacity(0.55), ForestTheme.Colors.cloudWhite],
                            startPoint: .top, endPoint: .bottom)
