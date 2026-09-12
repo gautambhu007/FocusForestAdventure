@@ -7,8 +7,9 @@ where a choice is needed it is named, with a recommendation.
 
 ## Status — 2026-09-12
 
-**All five engineering slices have landed on `main`** (`97956d8` … `e8d674e`, merged
-as a fast-forward at `b5c5e8b`). What holds each one:
+**Every engineering slice has landed on `main`** — the five from this study
+(`97956d8` … `e8d674e`) plus the art-track foundation (`8ca14d5`). `main` is
+fast-forwarded from `feature/puzzle-quest`. What holds each one:
 
 | Slice | Landed | Held by |
 |---|---|---|
@@ -17,6 +18,12 @@ as a fast-forward at `b5c5e8b`). What holds each one:
 | 3 Play screen | `a6a0ebc` | `WordSearchPlayViewModelTests` — 11 finger-style tests (drag, snap, hints, stars, finish, replay, crossing colour) |
 | 4 Progress + dashboard | `6c905cb` | `WordSearchSnapshotTests`, `WordSearchRepositoryTests` — per-child `WordSearchRecord` rows, read-back through a fresh context |
 | 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
+| 6 Art contract | `8ca14d5` | `WordSearchArtTests` — names unique and catalog-safe across all 609 assets, missing asset is nil, 21 painted places; `testTheMascotFollowsPlay` |
+
+**START HERE for the next session:** there is no engineering left in this
+study. The next action is a *decision* — commission art against
+`ArtContract.md`, or watch a child play sheet 31+ to settle the 10×10 touch
+size. If new engineering appears, add a row above and move this pointer.
 
 **Measured, not planned:** 249 target words (the brief's "~320" was 8 × 40; the
 stage-1 sheets legitimately carry 4). Grid sizes are the smallest stage size
