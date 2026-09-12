@@ -134,13 +134,30 @@ enum ForestTheme {
     // SF Rounded everywhere; sizes are generous for small hands & early readers.
     // All fonts scale with Dynamic Type via relativeTo.
 
+    /// Two bundled faces (Resources/Fonts, SIL Open Font License): Nunito,
+    /// the classic rounded storybook sans, for everything that shouts —
+    /// heroes, titles, headings, the puzzle letters — and Quicksand, lighter
+    /// and airier, for body and captions. Every size is relative to a text
+    /// style so Dynamic Type still scales it. The named instances below are
+    /// the variable fonts' own (Nunito-Black, Quicksand-SemiBold…).
     enum Fonts {
-        static let hero    = Font.system(size: 40, weight: .heavy, design: .rounded)
-        static let title   = Font.system(.largeTitle, design: .rounded).weight(.bold)
-        static let heading = Font.system(.title2, design: .rounded).weight(.bold)
-        static let body    = Font.system(.title3, design: .rounded).weight(.semibold)
-        static let caption = Font.system(.body, design: .rounded).weight(.medium)
-        static let giant   = Font.system(size: 88, weight: .heavy, design: .rounded)
+        static let display = "Nunito-ExtraBold"
+        static let displayHeavy = "Nunito-Black"
+        static let text = "Quicksand-SemiBold"
+        static let textLight = "Quicksand-Medium"
+
+        static let hero    = Font.custom(displayHeavy, size: 40, relativeTo: .largeTitle)
+        static let title   = Font.custom(display, size: 34, relativeTo: .largeTitle)
+        static let heading = Font.custom(display, size: 22, relativeTo: .title2)
+        static let body    = Font.custom(text, size: 20, relativeTo: .title3)
+        static let caption = Font.custom(textLight, size: 17, relativeTo: .body)
+        static let giant   = Font.custom(displayHeavy, size: 88, relativeTo: .largeTitle)
+
+        /// A display face at an arbitrary point size — for letters that
+        /// are sized to their cell rather than to a text style.
+        static func display(size: CGFloat) -> Font {
+            Font.custom(displayHeavy, fixedSize: size)
+        }
     }
 
     // MARK: Metrics

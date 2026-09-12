@@ -726,7 +726,7 @@ struct WordSearchGridView: View {
             else { ForestTheme.Colors.cloudWhite }
 
         return Text(letter)
-            .font(.system(size: max(14, side * 0.55), weight: .heavy, design: .rounded))
+            .font(ForestTheme.Fonts.display(size: max(14, side * 0.55)))
             .foregroundStyle(ForestTheme.Colors.deepGreen)
             .frame(width: side, height: side)
             .background(
