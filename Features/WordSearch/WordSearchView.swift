@@ -181,23 +181,37 @@ final class WordSearchPlayViewModel {
     /// The straight run under the finger right now.
     private(set) var selection: [WordSearchCell] = []
     private(set) var wrongFlash = false
+    /// The word whose row is popping right now; clears itself after the pop.
     private(set) var lastFound: String?
+    /// Bumps once per found word — the sparkle burst and the mascot's
+    /// reaction both key off it.
+    private(set) var sparkleTrigger = 0
+    /// The lit first letter of a hinted word. It stays lit through other
+    /// drags and clears only when its own word is found.
     private(set) var hintCell: WordSearchCell?
+    private(set) var hintWord: String?
     private(set) var hintsUsed = 0
     private(set) var starsEarned = 0
 
     private var dragStart: WordSearchCell?
 
-    init(sheetNumber: Int, dependencies: AppDependencies) {
+    /// `seed` is for tests; play draws a fresh one.
+    init(sheetNumber: Int, dependencies: AppDependencies, seed: UInt64? = nil) {
         self.dependencies = dependencies
         let sheet = WordSearchWordBank.sheet(number: sheetNumber) ?? WordSearchWordBank.sheets[0]
         self.sheet = sheet
-        self.puzzle = engine.makePuzzle(sheet: sheet, seed: engine.nextSeed(for: sheet.number, after: nil))
+        self.puzzle = engine.makePuzzle(sheet: sheet, seed: seed ?? engine.nextSeed(for: sheet.number, after: nil))
     }
 
     var words: [WordSearchWord] { sheet.words }
     func isFound(_ word: String) -> Bool { foundWords.contains(word) }
     var remainingCount: Int { words.count - foundWords.count }
+
+    /// The word a lit cell belongs to. Where two found words cross, the
+    /// one found first keeps the cell, so the colour never flickers.
+    func foundWord(at cell: WordSearchCell) -> String? {
+        foundWords.first { foundCells[$0]?.contains(cell) == true }
+    }
 
     /// One colour per word so the found runs read as separate ribbons.
     func color(for word: String) -> Color {
@@ -218,7 +232,6 @@ final class WordSearchPlayViewModel {
         guard phase == .playing, puzzle.letter(at: cell) != nil else { return }
         dragStart = cell
         selection = [cell]
-        hintCell = nil
     }
 
     /// Snap the run to the nearest of the eight directions so the child
@@ -262,8 +275,17 @@ final class WordSearchPlayViewModel {
         foundWords.append(word)
         foundCells[word] = cells
         lastFound = word
+        sparkleTrigger += 1
+        if hintWord == word {
+            hintWord = nil
+            hintCell = nil
+        }
         dependencies.soundEngine.play(.correctChime)
         dependencies.hapticsService.playSuccess()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            if lastFound == word { lastFound = nil }
+        }
         if foundWords.count == words.count {
             finish()
         }
@@ -278,6 +300,7 @@ final class WordSearchPlayViewModel {
               let placement = puzzle.placements.first(where: { !foundWords.contains($0.word) })
         else { return }
         hintsUsed += 1
+        hintWord = placement.word
         hintCell = placement.cells.first
         dependencies.soundEngine.play(.tapPop)
         dependencies.hapticsService.playGentleTap()
@@ -311,6 +334,7 @@ final class WordSearchPlayViewModel {
         foundCells = [:]
         selection = []
         hintCell = nil
+        hintWord = nil
         hintsUsed = 0
         lastFound = nil
         phase = .playing
@@ -323,6 +347,7 @@ final class WordSearchPlayViewModel {
 
 struct WordSearchPlayView: View {
     @State var viewModel: WordSearchPlayViewModel
+    @State private var mascotHop = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -386,19 +411,30 @@ struct WordSearchPlayView: View {
     // MARK: Grid
 
     /// The mascot leans on the panel's top-right corner, per the spec's
-    /// "outside the panel, not inside it".
+    /// "outside the panel, not inside it", and hops when a word is found.
+    /// Big grids get a slimmer panel so a 10×10 keeps ~31pt cells on a
+    /// phone — under the spec's 48pt ideal, but the drag snaps to a line
+    /// so the finger need not land on the cell.
     private var puzzlePanel: some View {
         WordSearchGridView(viewModel: viewModel)
-            .padding(12)
+            .padding(viewModel.puzzle.size >= 9 ? 6 : 12)
             .forestCard(cornerRadius: 22)
             .overlay(alignment: .topTrailing) {
                 Text(viewModel.sheet.mascot)
                     .font(.system(size: 44))
                     .offset(x: 10, y: -26)
+                    .scaleEffect(mascotHop && !reduceMotion ? 1.25 : 1)
                     .floating(amplitude: 4, period: 3)
                     .accessibilityHidden(true)
             }
             .padding(.top, 16)
+            .onChange(of: viewModel.sparkleTrigger) {
+                withAnimation(.bouncy(duration: 0.3)) { mascotHop = true }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(300))
+                    withAnimation(.bouncy(duration: 0.3)) { mascotHop = false }
+                }
+            }
     }
 
     // MARK: Word list
@@ -495,7 +531,7 @@ struct WordSearchGridView: View {
     let viewModel: WordSearchPlayViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let spacing: CGFloat = 4
+    private var spacing: CGFloat { viewModel.puzzle.size >= 9 ? 3 : 4 }
 
     var body: some View {
         GeometryReader { proxy in
@@ -512,6 +548,13 @@ struct WordSearchGridView: View {
                         }
                     }
                 }
+
+                // §15: the sparkle bursts from the middle of the run just
+                // found. The view lives in the tree from the start — it
+                // fires on a *change* of the trigger, so one inserted at
+                // the first find would miss it.
+                SparkleBurstView(trigger: viewModel.sparkleTrigger)
+                    .position(sparkleOrigin(side: side, size: size))
             }
             .contentShape(Rectangle())
             .gesture(
@@ -531,6 +574,14 @@ struct WordSearchGridView: View {
         .gentleShake(trigger: viewModel.wrongFlash)
     }
 
+    private func sparkleOrigin(side: CGFloat, size: Int) -> CGPoint {
+        let pitch = side + spacing
+        guard let word = viewModel.foundWords.last, let cells = viewModel.foundCells[word],
+              let middle = cells.dropFirst(cells.count / 2).first
+        else { return CGPoint(x: pitch * CGFloat(size) / 2, y: pitch * CGFloat(size) / 2) }
+        return CGPoint(x: CGFloat(middle.column) * pitch + side / 2, y: CGFloat(middle.row) * pitch + side / 2)
+    }
+
     private func cellAt(_ point: CGPoint, side: CGFloat, size: Int) -> WordSearchCell {
         let pitch = side + spacing
         let column = min(max(Int(point.x / pitch), 0), size - 1)
@@ -541,7 +592,7 @@ struct WordSearchGridView: View {
     private func cell(_ cell: WordSearchCell, side: CGFloat) -> some View {
         let letter = viewModel.puzzle.letter(at: cell).map(String.init) ?? ""
         let selected = viewModel.selection.contains(cell)
-        let foundWord = viewModel.foundCells.first { $0.value.contains(cell) }?.key
+        let foundWord = viewModel.foundWord(at: cell)
         let isHint = viewModel.hintCell == cell
         let fill: Color = if selected { ForestTheme.Colors.skyBlue }
             else if let foundWord { viewModel.color(for: foundWord) }

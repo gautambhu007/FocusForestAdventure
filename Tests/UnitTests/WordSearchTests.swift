@@ -12,6 +12,7 @@
 //  SUNSHINE would light up half a word.
 //
 
+import SwiftData
 import XCTest
 @testable import FocusForestAdventure
 
@@ -224,5 +225,175 @@ final class WordSearchProgressTests: XCTestCase {
         for number in 1...WordSearchWordBank.count { WordSearchProgress.record(stars: 1, for: number) }
         XCTAssertEqual(WordSearchProgress.nextSheetNumber, WordSearchWordBank.count)
         XCTAssertEqual(WordSearchProgress.completedCount, WordSearchWordBank.count)
+    }
+}
+
+/// The play screen's logic, driven the way a finger drives it: begin,
+/// move, end. Seeds are pinned so every run sees the same grid.
+@MainActor
+final class WordSearchPlayViewModelTests: XCTestCase {
+
+    private var container: ModelContainer!
+    private var deps: AppDependencies!
+
+    override func setUp() async throws {
+        WordSearchProgress.reset()
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        container = try ModelContainer(for: ModelContainerFactory.schema, configurations: [config])
+        deps = AppDependencies(modelContainer: container)
+    }
+
+    override func tearDown() async throws {
+        WordSearchProgress.reset()
+        deps = nil
+        container = nil
+    }
+
+    private func makeViewModel(sheet: Int = 1, seed: UInt64 = 11) -> WordSearchPlayViewModel {
+        WordSearchPlayViewModel(sheetNumber: sheet, dependencies: deps, seed: seed)
+    }
+
+    private func drag(_ viewModel: WordSearchPlayViewModel, _ cells: [WordSearchCell]) {
+        viewModel.dragBegan(at: cells[0])
+        for cell in cells.dropFirst() { viewModel.dragMoved(to: cell) }
+        viewModel.dragEnded()
+    }
+
+    func testDraggingAlongAPlacedWordFindsIt() {
+        let viewModel = makeViewModel()
+        let placement = viewModel.puzzle.placements[0]
+        drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        XCTAssertEqual(viewModel.foundWords, [placement.word])
+        XCTAssertEqual(viewModel.foundCells[placement.word], placement.cells)
+        XCTAssertEqual(viewModel.sparkleTrigger, 1)
+        XCTAssertTrue(viewModel.selection.isEmpty, "the run clears when the finger lifts")
+    }
+
+    func testDraggingBackwardsFindsTheSameWord() {
+        let viewModel = makeViewModel()
+        let placement = viewModel.puzzle.placements[0]
+        drag(viewModel, [placement.cells.last!, placement.cells.first!])
+        XCTAssertEqual(viewModel.foundWords, [placement.word])
+    }
+
+    func testDragSnapsToTheNearestLineSoAWobbleStillReadsTheWord() {
+        let viewModel = makeViewModel()
+        guard let placement = viewModel.puzzle.placements.first(where: { $0.direction == .right && $0.word.count >= 3 })
+        else { return XCTFail("seed 11 sheet 1 has a rightward word") }
+        let end = placement.cells.last!
+        // The finger drifts one row off the line at the far end.
+        let wobble = WordSearchCell(row: end.row + (end.row + 1 < viewModel.puzzle.size ? 1 : -1), column: end.column)
+        viewModel.dragBegan(at: placement.cells[0])
+        viewModel.dragMoved(to: wobble)
+        XCTAssertEqual(viewModel.selection, placement.cells, "a shallow drift snaps to the row")
+        viewModel.dragEnded()
+        XCTAssertEqual(viewModel.foundWords, [placement.word])
+    }
+
+    func testARunThatIsNotAWordFindsNothingAndNudges() {
+        let viewModel = makeViewModel()
+        // The first row is a run of letters; only a target counts. Pick a
+        // two-cell run that no target could be — every target is 3+ letters.
+        drag(viewModel, [WordSearchCell(row: 0, column: 0), WordSearchCell(row: 0, column: 1)])
+        XCTAssertTrue(viewModel.foundWords.isEmpty)
+        XCTAssertTrue(viewModel.wrongFlash)
+        XCTAssertEqual(viewModel.phase, .playing)
+    }
+
+    func testFindingAWordTwiceCountsOnce() {
+        let viewModel = makeViewModel()
+        let placement = viewModel.puzzle.placements[0]
+        drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        XCTAssertEqual(viewModel.foundWords.count, 1)
+        XCTAssertEqual(viewModel.sparkleTrigger, 1)
+    }
+
+    func testFindingEveryWordFinishesWithThreeStarsAndRecordsProgress() {
+        let viewModel = makeViewModel(sheet: 3)
+        for placement in viewModel.puzzle.placements {
+            drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        }
+        XCTAssertEqual(viewModel.phase, .celebrating)
+        XCTAssertEqual(viewModel.starsEarned, 3)
+        XCTAssertEqual(WordSearchProgress.stars(for: 3), 3)
+        XCTAssertTrue(WordSearchProgress.isUnlocked(4))
+    }
+
+    func testEachHintCostsAStarDownToOne() {
+        let viewModel = makeViewModel(sheet: 2)
+        for _ in 0..<5 { viewModel.hintTapped() }
+        XCTAssertEqual(viewModel.hintsUsed, 5)
+        for placement in viewModel.puzzle.placements {
+            drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        }
+        XCTAssertEqual(viewModel.starsEarned, 1, "never zero")
+    }
+
+    func testHintLightsTheFirstLetterOfAnUnfoundWordAndOutlivesOtherDrags() {
+        let viewModel = makeViewModel()
+        let first = viewModel.puzzle.placements[0]
+        drag(viewModel, [first.cells.first!, first.cells.last!])
+
+        viewModel.hintTapped()
+        guard let hintWord = viewModel.hintWord else { return XCTFail("a hint names its word") }
+        XCTAssertNotEqual(hintWord, first.word, "hints point at unfound words")
+        let hinted = viewModel.puzzle.placements.first { $0.word == hintWord }!
+        XCTAssertEqual(viewModel.hintCell, hinted.cells.first)
+
+        // A wrong drag leaves the hint alone.
+        drag(viewModel, [WordSearchCell(row: 0, column: 0), WordSearchCell(row: 0, column: 1)])
+        XCTAssertEqual(viewModel.hintCell, hinted.cells.first)
+
+        // Finding the hinted word clears it.
+        drag(viewModel, [hinted.cells.first!, hinted.cells.last!])
+        XCTAssertNil(viewModel.hintCell)
+        XCTAssertNil(viewModel.hintWord)
+    }
+
+    func testDragsAreIgnoredOnceCelebrating() {
+        let viewModel = makeViewModel(sheet: 4)
+        for placement in viewModel.puzzle.placements {
+            drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        }
+        XCTAssertEqual(viewModel.phase, .celebrating)
+        let before = viewModel.sparkleTrigger
+        viewModel.dragBegan(at: WordSearchCell(row: 0, column: 0))
+        XCTAssertTrue(viewModel.selection.isEmpty)
+        XCTAssertEqual(viewModel.sparkleTrigger, before)
+    }
+
+    func testPlayAgainDealsAFreshGridAndClearsEverything() {
+        let viewModel = makeViewModel(sheet: 5)
+        let firstSeed = viewModel.puzzle.seed
+        viewModel.hintTapped()
+        for placement in viewModel.puzzle.placements {
+            drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        }
+        viewModel.playAgainTapped()
+        XCTAssertNotEqual(viewModel.puzzle.seed, firstSeed)
+        XCTAssertEqual(viewModel.phase, .playing)
+        XCTAssertTrue(viewModel.foundWords.isEmpty)
+        XCTAssertTrue(viewModel.foundCells.isEmpty)
+        XCTAssertNil(viewModel.hintCell)
+        XCTAssertEqual(viewModel.hintsUsed, 0)
+        XCTAssertEqual(WordSearchProgress.stars(for: 5), 2, "the first run's stars are kept")
+    }
+
+    func testACrossingCellKeepsTheColourOfTheWordFoundFirst() {
+        // Sweep seeds for a grid with an intersection so the case is real.
+        for seed in UInt64(1)...40 {
+            let viewModel = makeViewModel(sheet: 25, seed: seed)
+            let placements = viewModel.puzzle.placements
+            guard let (a, b) = placements.enumerated().lazy.compactMap({ i, a -> (WordSearchPlacement, WordSearchPlacement)? in
+                placements.dropFirst(i + 1).first { !Set($0.cells).isDisjoint(with: a.cells) }.map { (a, $0) }
+            }).first else { continue }
+            let shared = Set(a.cells).intersection(b.cells).first!
+            drag(viewModel, [b.cells.first!, b.cells.last!])
+            drag(viewModel, [a.cells.first!, a.cells.last!])
+            XCTAssertEqual(viewModel.foundWord(at: shared), b.word)
+            return
+        }
+        XCTFail("sheet 25 never intersected in 40 seeds — pick another sheet")
     }
 }
