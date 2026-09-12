@@ -187,6 +187,7 @@ final class WordSearchPlayViewModel {
     let dependencies: AppDependencies
     let sheet: WordSearchSheet
     private let engine = WordSearchEngine()
+    private let speech: any SpeechServiceProtocol
 
     private(set) var puzzle: WordSearchPuzzle
     private(set) var phase: Phase = .playing
@@ -210,9 +211,12 @@ final class WordSearchPlayViewModel {
 
     private var dragStart: WordSearchCell?
 
-    /// `seed` is for tests; play draws a fresh one.
-    init(sheetNumber: Int, dependencies: AppDependencies, seed: UInt64? = nil) {
+    /// `seed` and `speech` are for tests; play draws a fresh seed and
+    /// speaks through the app's service.
+    init(sheetNumber: Int, dependencies: AppDependencies, seed: UInt64? = nil,
+         speech: (any SpeechServiceProtocol)? = nil) {
         self.dependencies = dependencies
+        self.speech = speech ?? dependencies.speechService
         let sheet = WordSearchWordBank.sheet(number: sheetNumber) ?? WordSearchWordBank.sheets[0]
         self.sheet = sheet
         self.puzzle = engine.makePuzzle(sheet: sheet, seed: seed ?? engine.nextSeed(for: sheet.number, after: nil))
@@ -309,6 +313,9 @@ final class WordSearchPlayViewModel {
         }
         dependencies.soundEngine.play(.correctChime)
         dependencies.hapticsService.playSuccess()
+        // Read the word out while the character does its lap — lowercase,
+        // so the voice says "seed" rather than spelling S-E-E-D.
+        Task { await speech.speak(word.lowercased()) }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(600))
             if lastFound == word { lastFound = nil }
@@ -510,8 +517,12 @@ struct WordSearchPlayView: View {
             .forestCard(cornerRadius: 22)
             .overlay(alignment: .topTrailing) {
                 GeometryReader { panel in
+                    // The mascot frame is 44 × 1.3 ≈ 57pt and sits 10pt past the
+                    // right edge and 40pt above the top; the corners are measured
+                    // from there.
                     WordSearchMascotHop(trigger: reduceMotion ? 0 : viewModel.sparkleTrigger,
-                                        dropDistance: panel.size.height - 40) {
+                                        runDistance: panel.size.width - 57 + 10,
+                                        dropDistance: panel.size.height - 57 + 40) {
                         WordSearchMascotView(sheet: viewModel.sheet, state: viewModel.mascotState)
                     }
                     .frame(maxWidth: .infinity, alignment: .topTrailing)

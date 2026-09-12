@@ -160,48 +160,79 @@ struct WordSearchMascotView: View {
     }
 }
 
-// MARK: - The hop
+// MARK: - The victory lap
 
-/// The found-word reaction: the character springs up from its corner,
-/// drops to the panel's bottom edge, and flies back to where it sat.
-/// Keyed on the play view model's `sparkleTrigger`; pass 0 as the
-/// trigger under Reduce Motion and it never moves.
+/// How long each leg of the lap takes, in seconds. Total ≈ 1.65s, a
+/// little over the brief's 0.5–1.0s because the path is three moves.
+enum WordSearchLapTiming {
+    static let run = 0.55, drop = 0.40, home = 0.70
+    static var total: Double { run + drop + home }
+}
+
+/// The found-word reaction, as Gautam described it: the character runs
+/// from its corner along the top of the panel to the left, hops down to
+/// the bottom-left corner, then takes one big diagonal hop back up to
+/// the top-right corner where it sat. Keyed on the play view model's
+/// `sparkleTrigger`; pass 0 as the trigger under Reduce Motion and it
+/// never moves. `runDistance` is how far left the top-left corner is,
+/// `dropDistance` how far down the bottom edge is.
 struct WordSearchMascotHop<Content: View>: View {
     let trigger: Int
-    /// How far down the bottom edge is from the character's resting spot.
+    let runDistance: CGFloat
     let dropDistance: CGFloat
     @ViewBuilder let content: () -> Content
 
-    private struct Hop {
+    private struct Lap {
+        var x: CGFloat = 0
         var y: CGFloat = 0
         var scale: CGFloat = 1
-        var tilt: Double = 0
+        /// -1 faces left (running away), +1 faces right (coming home).
+        var facing: CGFloat = 1
     }
 
+    /// Timing of the three legs, in seconds.
+    private var run: Double { WordSearchLapTiming.run }
+    private var drop: Double { WordSearchLapTiming.drop }
+    private var home: Double { WordSearchLapTiming.home }
+
     var body: some View {
-        KeyframeAnimator(initialValue: Hop(), trigger: trigger) { hop in
+        let left = -max(0, runDistance), bottom = max(0, dropDistance)
+        KeyframeAnimator(initialValue: Lap(), trigger: trigger) { lap in
             content()
-                .scaleEffect(hop.scale)
-                .rotationEffect(.degrees(hop.tilt))
-                .offset(y: hop.y)
+                .scaleEffect(x: lap.facing * lap.scale, y: lap.scale)
+                .offset(x: lap.x, y: lap.y)
         } keyframes: { _ in
+            KeyframeTrack(\.x) {
+                CubicKeyframe(left, duration: run)                  // run left along the top
+                LinearKeyframe(left, duration: drop)                // stay in the left column
+                CubicKeyframe(0, duration: home)                    // diagonal hop home
+            }
             KeyframeTrack(\.y) {
-                SpringKeyframe(-36, duration: 0.22, spring: .bouncy)          // spring up
-                CubicKeyframe(max(0, dropDistance), duration: 0.34)           // drop to the bottom edge
-                CubicKeyframe(max(0, dropDistance) - 8, duration: 0.10)       // a little bounce on landing
-                SpringKeyframe(0, duration: 0.55, spring: .smooth)            // fly home
+                // Little bobs while running, so it reads as steps.
+                CubicKeyframe(-8, duration: run * 0.25)
+                CubicKeyframe(0, duration: run * 0.25)
+                CubicKeyframe(-8, duration: run * 0.25)
+                CubicKeyframe(0, duration: run * 0.25)
+                // Hop down: a small lift, then the fall, then a landing bounce.
+                CubicKeyframe(-24, duration: drop * 0.3)
+                CubicKeyframe(bottom, duration: drop * 0.55)
+                CubicKeyframe(bottom - 10, duration: drop * 0.15)
+                // The big diagonal: up over an arc and down onto the corner.
+                CubicKeyframe(bottom * 0.3 - 60, duration: home * 0.5)
+                SpringKeyframe(0, duration: home * 0.5, spring: .bouncy)
+            }
+            KeyframeTrack(\.facing) {
+                LinearKeyframe(-1, duration: 0.05)                       // turn to run left
+                LinearKeyframe(-1, duration: run + drop - 0.05)
+                LinearKeyframe(1, duration: 0.05)                        // turn for the hop home
+                LinearKeyframe(1, duration: home - 0.05)
             }
             KeyframeTrack(\.scale) {
-                SpringKeyframe(1.25, duration: 0.22, spring: .bouncy)
-                CubicKeyframe(1.0, duration: 0.34)
-                CubicKeyframe(1.12, duration: 0.10)
-                SpringKeyframe(1.0, duration: 0.55, spring: .smooth)
-            }
-            KeyframeTrack(\.tilt) {
-                CubicKeyframe(-10, duration: 0.22)
-                CubicKeyframe(8, duration: 0.34)
-                CubicKeyframe(-4, duration: 0.10)
-                CubicKeyframe(0, duration: 0.55)
+                LinearKeyframe(1, duration: run)
+                CubicKeyframe(0.9, duration: drop * 0.85)           // squash on landing
+                CubicKeyframe(1.05, duration: drop * 0.15)
+                CubicKeyframe(1.2, duration: home * 0.5)            // stretch at the top of the arc
+                SpringKeyframe(1, duration: home * 0.5, spring: .bouncy)
             }
         }
     }

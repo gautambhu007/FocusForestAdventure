@@ -522,6 +522,32 @@ final class WordSearchPlayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.mascotState, .celebrate, "and celebrating outranks everything")
     }
 
+    private final class SpeechSpy: SpeechServiceProtocol {
+        var isEnabled = true
+        var hasNaturalVoice = true
+        var hasHindiVoice = true
+        var spoken: [String] = []
+        func speak(_ text: String) async { spoken.append(text) }
+        func speak(_ text: String, language: String) async { spoken.append(text) }
+        func stop() {}
+        func refreshVoice() {}
+    }
+
+    func testAFoundWordIsReadOutInLowercaseSoItIsSaidNotSpelled() async throws {
+        let spy = SpeechSpy()
+        let viewModel = WordSearchPlayViewModel(sheetNumber: 1, dependencies: deps, seed: 11, speech: spy)
+        let placement = viewModel.puzzle.placements[0]
+        drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(spy.spoken, [placement.word.lowercased()])
+
+        // A wrong drag says nothing; a repeat find says nothing again.
+        drag(viewModel, [WordSearchCell(row: 0, column: 0), WordSearchCell(row: 0, column: 1)])
+        drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(spy.spoken.count, 1)
+    }
+
     func testACrossingCellKeepsTheColourOfTheWordFoundFirst() {
         // Sweep seeds for a grid with an intersection so the case is real.
         for seed in UInt64(1)...40 {
