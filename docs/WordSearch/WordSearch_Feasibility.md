@@ -26,8 +26,14 @@ scene — 21 in the forest's places, 19 in `WordSearchPaintedScene`'s twelve
 code-painted families (ocean, farm, prehistoric, city, beach, winter,
 tropical, savanna, arctic, robot, construction, railway). What remains:
 1. **Scenes** — 40 `WS_ENV_nn` images, each generated as its own full-size
-   image (≥1024 wide, portrait, no label) from `Prompts.md`; the first batch
-   was a labelled contact grid and was rejected. Mascots are done.
+   image (≥1024 wide, portrait, no label) from `Prompts.md`. Two deliveries
+   so far were the same labelled contact grid cropped into 171px tiles and
+   were rejected; a "corrected" mascot batch was the grid cropped off-cell
+   and was also rejected (the mascots already landed are the good cut).
+   **One prompt → one image → one file**, three scenes first for a check.
+   Mascots are done. Word pictures are optional (emoji does the job) and
+   must use names from the `Prompts.md` table — a pasted grid of 24 had
+   only 9 words that exist in the game.
 2. **The 10×10 touch size on phones** — a decision from watching a child play
    sheet 31+.
 Move this pointer when one of them lands.
