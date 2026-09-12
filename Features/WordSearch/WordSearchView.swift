@@ -9,9 +9,10 @@
 //  word, and the mascot leaning on the panel's edge rather than sitting
 //  inside it.
 //
-//  Art contract: every sheet names a mascot and a palette. Today both are
-//  an emoji and a gradient; when a painted scene or a rigged character
-//  lands for a sheet, it replaces that layer and nothing else moves.
+//  Art contract: every sheet names a mascot and a palette. Today the
+//  mascot is an emoji and the scene is a painted forest place or a
+//  gradient; `WordSearchArt` swaps
+//  in catalog assets per sheet as they land, and nothing else moves.
 //
 
 import SwiftUI
@@ -221,6 +222,18 @@ final class WordSearchPlayViewModel {
     func isFound(_ word: String) -> Bool { foundWords.contains(word) }
     var remainingCount: Int { words.count - foundWords.count }
 
+    /// What the character is doing, derived from play so the view never
+    /// has to sequence it: celebrating beats everything, then the brief
+    /// nudge after a wrong drag, then the hop for a found word, then the
+    /// lean toward a lit hint, else resting.
+    var mascotState: WordSearchMascotState {
+        if phase == .celebrating { return .celebrate }
+        if wrongFlash { return .encourage }
+        if lastFound != nil { return .wordFound }
+        if hintCell != nil { return .hint }
+        return .idle
+    }
+
     /// The word a lit cell belongs to. Where two found words cross, the
     /// one found first keeps the cell, so the colour never flickers.
     func foundWord(at cell: WordSearchCell) -> String? {
@@ -368,7 +381,6 @@ final class WordSearchPlayViewModel {
 
 struct WordSearchPlayView: View {
     @State var viewModel: WordSearchPlayViewModel
-    @State private var mascotHop = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -415,8 +427,7 @@ struct WordSearchPlayView: View {
     }
 
     private var background: some View {
-        LinearGradient(colors: [viewModel.sheet.palette.tint.opacity(0.55), ForestTheme.Colors.cloudWhite],
-                       startPoint: .top, endPoint: .bottom)
+        WordSearchSceneBackground(sheet: viewModel.sheet)
     }
 
     // MARK: Layouts
@@ -474,13 +485,22 @@ struct WordSearchPlayView: View {
                 .font(ForestTheme.Fonts.caption)
                 .foregroundStyle(ForestTheme.Colors.deepGreen.opacity(0.8))
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        // The sign board from the templates: a cream plaque so the title
+        // reads on a dark scene (the deep woods swallowed it otherwise).
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(ForestTheme.Colors.cloudWhite.opacity(0.82))
+        )
         .padding(.top, 8)
     }
 
     // MARK: Grid
 
     /// The mascot leans on the panel's top-right corner, per the spec's
-    /// "outside the panel, not inside it", and hops when a word is found.
+    /// "outside the panel, not inside it", and reacts to play through
+    /// `mascotState`.
     /// Big grids get a slimmer panel so a 10×10 keeps ~31pt cells on a
     /// phone — under the spec's 48pt ideal, but the drag snaps to a line
     /// so the finger need not land on the cell.
@@ -489,21 +509,11 @@ struct WordSearchPlayView: View {
             .padding(viewModel.puzzle.size >= 9 ? 6 : 12)
             .forestCard(cornerRadius: 22)
             .overlay(alignment: .topTrailing) {
-                Text(viewModel.sheet.mascot)
-                    .font(.system(size: 44))
-                    .offset(x: 10, y: -34)
-                    .scaleEffect(mascotHop && !reduceMotion ? 1.25 : 1)
+                WordSearchMascotView(sheet: viewModel.sheet, state: viewModel.mascotState)
+                    .offset(x: 10, y: -40)
                     .floating(amplitude: 4, period: 3)
-                    .accessibilityHidden(true)
             }
             .padding(.top, 16)
-            .onChange(of: viewModel.sparkleTrigger) {
-                withAnimation(.bouncy(duration: 0.3)) { mascotHop = true }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(300))
-                    withAnimation(.bouncy(duration: 0.3)) { mascotHop = false }
-                }
-            }
     }
 
     // MARK: Word list
@@ -534,7 +544,7 @@ struct WordSearchPlayView: View {
     private func wordRow(_ word: WordSearchWord) -> some View {
         let found = viewModel.isFound(word.text)
         return HStack(spacing: 8) {
-            Text(word.emoji).font(.title3)
+            WordSearchWordPicture(word: word)
             Text(word.text)
                 .font(ForestTheme.Fonts.body)
                 .lineLimit(1)
@@ -577,9 +587,7 @@ struct WordSearchPlayView: View {
                 Text(String(repeating: "⭐", count: viewModel.starsEarned))
                     .font(.system(size: 40))
                     .accessibilityLabel(String(localized: "\(viewModel.starsEarned) stars"))
-                Text(viewModel.sheet.mascot)
-                    .font(.system(size: 64))
-                    .accessibilityHidden(true)
+                WordSearchMascotView(sheet: viewModel.sheet, state: .celebrate, size: 64)
 
                 if viewModel.nextSheet != nil {
                     BigBouncyButton(title: String(localized: "Next Level"), icon: "arrow.right") {
@@ -632,6 +640,9 @@ struct WordSearchGridView: View {
                 // the first find would miss it.
                 SparkleBurstView(trigger: viewModel.sparkleTrigger)
                     .position(sparkleOrigin(side: side, size: size))
+                    // Its rays sit visible at rest; keep them hidden until
+                    // the first find so the grid doesn't wear a star.
+                    .opacity(viewModel.sparkleTrigger > 0 ? 1 : 0)
             }
             .contentShape(Rectangle())
             .gesture(

@@ -30,9 +30,20 @@ from *different* words lining up into DIE; three sheets never laying a
 diagonal at 86% density; and the test file's own run counter dividing by two,
 which would have hidden the fallback defect.
 
+**Art track — the contract is in place, the art is not.** `WordSearchArt`
+(`Features/WordSearch/WordSearchArt.swift`) resolves three layers per sheet —
+mascot pose (`WS_CHAR_nn_State`, eight states from §13), scene (`WS_ENV_nn`) and
+word picture (`WS_WORD_WORD`) — from the asset catalog, falling back to the
+emoji mascot moved per state, a painted forest place (21 of 40 sheets stand
+in one today) or the palette gradient, and the emoji. The mascot's state is
+derived from play (`mascotState`), so a rigged character replaces the layer
+and inherits the behaviour. `docs/WordSearch/ArtContract.md` is the brief an
+artist works from: names, sizes, and the 40-sheet and 249-word tables. Held
+by `WordSearchArtTests` and `testTheMascotFollowsPlay`.
+
 **Open — not engineering:**
-- **Art track (risk 4)** — every sheet still plays on an emoji mascot and a
-  gradient. `WordSearchSheet.mascot` / `.palette` are the swap points.
+- **The art itself** — 0 of 320 mascot poses, 0 of 40 scenes, 0 of 249 word
+  pictures exist. Drop image sets in per the contract; nothing else changes.
 - **Touch size on 10×10 phones** — the spec wants 48pt, the phone gives ~31pt
   with drag-to-line snapping. Decide after watching a child play sheet 31+.
 - **Stars earned before `6c905cb`** lived in `UserDefaults` and were not migrated

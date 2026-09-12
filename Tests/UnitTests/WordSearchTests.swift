@@ -282,6 +282,49 @@ final class WordSearchRepositoryTests: XCTestCase {
     }
 }
 
+/// The art contract: names an artist can produce to, and the fallbacks
+/// every sheet plays on until they do.
+final class WordSearchArtTests: XCTestCase {
+
+    func testAssetNamesFollowTheContract() {
+        XCTAssertEqual(WordSearchArt.mascotName(sheet: 7, state: .idle), "WS_CHAR_07_Idle")
+        XCTAssertEqual(WordSearchArt.mascotName(sheet: 40, state: .celebrate), "WS_CHAR_40_Celebrate")
+        XCTAssertEqual(WordSearchArt.sceneName(sheet: 1), "WS_ENV_01")
+        XCTAssertEqual(WordSearchArt.wordName("bee"), "WS_WORD_BEE")
+    }
+
+    func testEveryNameTheCampaignCanAskForIsUniqueAndCatalogSafe() {
+        var names: [String] = []
+        for sheet in WordSearchWordBank.sheets {
+            names.append(WordSearchArt.sceneName(sheet: sheet.number))
+            for state in WordSearchMascotState.allCases {
+                names.append(WordSearchArt.mascotName(sheet: sheet.number, state: state))
+            }
+            for word in sheet.words { names.append(WordSearchArt.wordName(word.text)) }
+        }
+        XCTAssertEqual(Set(names).count, names.count, "no two layers share an asset name")
+        for name in names {
+            XCTAssertTrue(name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }, "\(name) is not a safe asset name")
+        }
+        // 40 scenes + 40 × 8 poses + one picture per target word.
+        XCTAssertEqual(names.count, 40 + 40 * 8 + WordSearchWordBank.allWords.count)
+    }
+
+    func testAMissingAssetIsAFallbackNotAnError() {
+        XCTAssertFalse(WordSearchArt.isBundled("WS_CHAR_99_Idle"))
+        XCTAssertNil(WordSearchArt.mascot(sheet: 99, state: .celebrate))
+        XCTAssertNil(WordSearchArt.wordPicture("NOT_A_WORD"))
+    }
+
+    func testTheForestAlreadyPaintsAScenceForAboutHalfTheSheets() {
+        let painted = WordSearchWordBank.sheets.filter { $0.palette.forestPlace != nil }
+        // Documented in docs/WordSearch/ArtContract.md; keep the two in step.
+        XCTAssertEqual(painted.count, 21, "sheets with a forest place: \(painted.map(\.number))")
+        XCTAssertTrue(painted.contains { $0.number == 7 }, "Enchanted Forest stands in the deep woods")
+        XCTAssertNil(WordSearchWordBank.sheets[2].palette.forestPlace, "Ocean Friends has no forest to stand in")
+    }
+}
+
 /// The play screen's logic, driven the way a finger drives it: begin,
 /// move, end. Seeds are pinned so every run sees the same grid.
 @MainActor
@@ -436,6 +479,26 @@ final class WordSearchPlayViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.hintCell)
         XCTAssertEqual(viewModel.hintsUsed, 0)
         XCTAssertEqual(try savedStars(for: 5), 2, "the first run's stars are kept")
+    }
+
+    func testTheMascotFollowsPlay() {
+        let viewModel = makeViewModel(sheet: 2)
+        XCTAssertEqual(viewModel.mascotState, .idle)
+
+        viewModel.hintTapped()
+        XCTAssertEqual(viewModel.mascotState, .hint, "leans toward the lit letter")
+
+        let placement = viewModel.puzzle.placements.first { $0.word != viewModel.hintWord }!
+        drag(viewModel, [placement.cells.first!, placement.cells.last!])
+        XCTAssertEqual(viewModel.mascotState, .wordFound, "the hop outranks the still-lit hint")
+
+        drag(viewModel, [WordSearchCell(row: 0, column: 0), WordSearchCell(row: 0, column: 1)])
+        XCTAssertEqual(viewModel.mascotState, .encourage, "the nudge outranks the hop while it flashes")
+
+        for other in viewModel.puzzle.placements where other.word != placement.word {
+            drag(viewModel, [other.cells.first!, other.cells.last!])
+        }
+        XCTAssertEqual(viewModel.mascotState, .celebrate, "and celebrating outranks everything")
     }
 
     func testACrossingCellKeepsTheColourOfTheWordFoundFirst() {
