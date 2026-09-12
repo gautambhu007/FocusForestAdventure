@@ -48,8 +48,8 @@ which would have hidden the fallback defect.
 (`Features/WordSearch/WordSearchArt.swift`) resolves three layers per sheet —
 mascot pose (`WS_CHAR_nn_State`, eight states from §13), scene (`WS_ENV_nn`) and
 word picture (`WS_WORD_WORD`) — from the asset catalog, falling back to the
-emoji mascot moved per state, a painted forest place (21 of 40 sheets stand
-in one today) or the palette gradient, and the emoji. The mascot's state is
+emoji mascot moved per state, a painted scene (21 sheets stand in a forest
+place, 19 in a code-painted family — `WordSearchScenes.swift`), and the emoji. The mascot's state is
 derived from play (`mascotState`), so a rigged character replaces the layer
 and inherits the behaviour. `docs/WordSearch/ArtContract.md` is the brief an
 artist works from: names, sizes, and the 40-sheet and 249-word tables. Held

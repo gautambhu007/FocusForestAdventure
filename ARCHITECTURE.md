@@ -300,7 +300,7 @@ Art is three per-sheet layers resolved by `WordSearchArt` from the asset
 catalog — mascot pose `WS_CHAR_nn_State`, scene `WS_ENV_nn`, word picture
 `WS_WORD_WORD` — each with a fallback that ships today (emoji moved per
 state; a painted `ForestPlace` for the themes the forest can stand in, else
-a gradient; emoji). The mascot's state is derived from play in the view
+one of `WordSearchPaintedScene`'s twelve code-painted families; emoji). The mascot's state is derived from play in the view
 model, so a rigged character replaces the layer and inherits the behaviour.
 Brief, templates, the feasibility study (with a status block saying what
 landed and what is open) and the artist's contract are in `docs/WordSearch/`.
