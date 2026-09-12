@@ -34,6 +34,9 @@ enum SoundEffect: String, CaseIterable {
     case chestOpen = "chest_open"
     case forestGrow = "forest_grow"
     case cardFlip = "card_flip"
+    /// A bright little "ping!" — the Word Hunt character's footfalls on
+    /// its victory lap. No asset yet; the system "tink" stands in.
+    case ping = "ping"
     // Animal sounds for listening games
     case lionRoar = "lion_roar", cowMoo = "cow_moo", duckQuack = "duck_quack"
     case dogWoof = "dog_woof", catMeow = "cat_meow", owlHoot = "owl_hoot"
@@ -45,7 +48,7 @@ enum SoundEffect: String, CaseIterable {
         case .tapPop, .cardFlip: 1104          // keyboard tap
         case .correctChime, .starEarned: 1025  // short positive chime
         case .chestOpen, .forestGrow: 1022
-        case .gentleTryAgain: 1057             // soft neutral "tink"
+        case .gentleTryAgain, .ping: 1057      // soft neutral "tink"
         default: nil
         }
     }

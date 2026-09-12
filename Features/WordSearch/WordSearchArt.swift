@@ -162,11 +162,15 @@ struct WordSearchMascotView: View {
 
 // MARK: - The victory lap
 
-/// How long each leg of the lap takes, in seconds. Total ≈ 1.65s, a
-/// little over the brief's 0.5–1.0s because the path is three moves.
+/// How long each leg of the lap takes, in seconds. Total ≈ 2.6s: slower
+/// than the brief's 0.5–1.0s on purpose — Gautam found the quick version
+/// frustrating to watch, and a child has just done something good.
 enum WordSearchLapTiming {
-    static let run = 0.55, drop = 0.40, home = 0.70
+    static let run = 0.9, drop = 0.6, home = 1.1
     static var total: Double { run + drop + home }
+    /// When the two footfalls happen — the landing at the bottom-left and
+    /// the landing back home — for the "ping!" that goes with them.
+    static var landings: [Double] { [run + drop * 0.85, total] }
 }
 
 /// The found-word reaction, as Gautam described it: the character runs
@@ -228,10 +232,11 @@ struct WordSearchMascotHop<Content: View>: View {
                 LinearKeyframe(1, duration: home - 0.05)
             }
             KeyframeTrack(\.scale) {
-                LinearKeyframe(1, duration: run)
-                CubicKeyframe(0.9, duration: drop * 0.85)           // squash on landing
-                CubicKeyframe(1.05, duration: drop * 0.15)
-                CubicKeyframe(1.2, duration: home * 0.5)            // stretch at the top of the arc
+                CubicKeyframe(1.18, duration: run * 0.3)             // grows a little as it sets off
+                LinearKeyframe(1.18, duration: run * 0.7)
+                CubicKeyframe(1.05, duration: drop * 0.85)           // squash on landing
+                CubicKeyframe(1.22, duration: drop * 0.15)
+                CubicKeyframe(1.35, duration: home * 0.5)            // biggest at the top of the arc
                 SpringKeyframe(1, duration: home * 0.5, spring: .bouncy)
             }
         }

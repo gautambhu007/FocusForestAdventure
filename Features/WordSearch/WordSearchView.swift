@@ -316,6 +316,13 @@ final class WordSearchPlayViewModel {
         // Read the word out while the character does its lap — lowercase,
         // so the voice says "seed" rather than spelling S-E-E-D.
         Task { await speech.speak(word.lowercased()) }
+        // A "ping!" for each footfall of the lap.
+        for landing in WordSearchLapTiming.landings {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(Int(landing * 1000)))
+                dependencies.soundEngine.play(.ping)
+            }
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(600))
             if lastFound == word { lastFound = nil }
