@@ -48,9 +48,17 @@ and inherits the behaviour. `docs/WordSearch/ArtContract.md` is the brief an
 artist works from: names, sizes, and the 40-sheet and 249-word tables. Held
 by `WordSearchArtTests` and `testTheMascotFollowsPlay`.
 
+**First art through the contract (2026-09-12):** ten CC0 image sets from
+Kenney's Animal and Fish packs — 4 idle mascots (sheets 1, 6, 10, 40) and 6
+word pictures (HIPPO, MONKEY, PIG, SNAKE, BUNNY, FISH); provenance in
+`ThirdPartyArt.md`. That is the whole overlap between those packs and the
+word bank. A generator script for the OpenAI Images API exists at
+`tools/wordhunt_art.py` (untracked) for when an API key is in the profile.
+
 **Open — not engineering:**
-- **The art itself** — 0 of 320 mascot poses, 0 of 40 scenes, 0 of 249 word
+- **The art itself** — 4 of 320 mascot poses, 0 of 40 scenes, 6 of 249 word
   pictures exist. Drop image sets in per the contract; nothing else changes.
+  The next cheap win is code-painted scenes for the 19 sheets on a gradient.
 - **Touch size on 10×10 phones** — the spec wants 48pt, the phone gives ~31pt
   with drag-to-line snapping. Decide after watching a child play sheet 31+.
 - **Stars earned before `6c905cb`** lived in `UserDefaults` and were not migrated

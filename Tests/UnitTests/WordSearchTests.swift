@@ -310,6 +310,19 @@ final class WordSearchArtTests: XCTestCase {
         XCTAssertEqual(names.count, 40 + 40 * 8 + WordSearchWordBank.allWords.count)
     }
 
+    /// The first real art through the contract: Kenney's CC0 animals
+    /// (docs/WordSearch/ThirdPartyArt.md). A character with only an idle
+    /// pose must still answer for every state.
+    func testBundledArtResolvesAndAnIdleOnlyCharacterCoversEveryState() {
+        XCTAssertTrue(WordSearchArt.isBundled("WS_CHAR_06_Idle"))
+        XCTAssertFalse(WordSearchArt.isBundled("WS_CHAR_06_Celebrate"), "only the idle pose shipped")
+        for state in WordSearchMascotState.allCases {
+            XCTAssertNotNil(WordSearchArt.mascot(sheet: 6, state: state), "\(state) falls back to Idle")
+        }
+        XCTAssertNotNil(WordSearchArt.wordPicture("SNAKE"))
+        XCTAssertNil(WordSearchArt.wordPicture("VINE"), "still emoji")
+    }
+
     func testAMissingAssetIsAFallbackNotAnError() {
         XCTAssertFalse(WordSearchArt.isBundled("WS_CHAR_99_Idle"))
         XCTAssertNil(WordSearchArt.mascot(sheet: 99, state: .celebrate))
