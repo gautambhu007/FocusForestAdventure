@@ -281,6 +281,23 @@ rows, and concentration and processing speed come from *how* the child plays
 (hint rate, time against the limit). A row with fewer than five samples shows
 "not enough play yet" rather than a made-up rating.
 
+## 4g. Word Hunt (word search, ages 4–7)
+
+A fixed campaign rather than a puzzle kind: forty authored sheets in
+`WordSearchWordBank`, each a theme, a mascot, a palette and 4–8 picture words.
+`WordSearchWordBankTests` is the only reason the zero-repetition rule can be
+trusted — it fails on a duplicate, a shared stem or one word hiding inside
+another. `WordSearchEngine.makePuzzle(sheet:seed:)` is pure and seeded: it lays
+words under the sheet's stage rules (directions, intersection cap, backwards
+cap), then fills, re-rolling any fill that spells a target twice or a blocked
+word the targets themselves did not contribute. Grid size is the smallest the
+stage allows that keeps target letters under 70% of cells; denser grids starve
+the diagonals. Progress is `WordSearchRecord` (per child × sheet, best stars),
+surfaced through `WordSearchSnapshot`, a value that carries the unlock and
+"up next" rules so they test without a store. Brief, templates and the
+feasibility study — including what landed and what is open — are in
+`docs/WordSearch/`.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).

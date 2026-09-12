@@ -5,6 +5,41 @@ Studied: `Flora_40_Word_Search_Master_Prompt.md`, `template-forest-fox.png` (For
 `feature/puzzle-quest`. Written 2026-09-12 without any product decisions taken —
 where a choice is needed it is named, with a recommendation.
 
+## Status — 2026-09-12
+
+**All five engineering slices have landed on `main`** (`97956d8` … `e8d674e`, merged
+as a fast-forward at `b5c5e8b`). What holds each one:
+
+| Slice | Landed | Held by |
+|---|---|---|
+| 1 Word table + uniqueness | `78df0e5` | `WordSearchWordBankTests` — collisions (dup / stem / substring), stage tables, 40 sheets |
+| 2 Generator + stage rules | `78df0e5` | `WordSearchEngineTests` — 40 sheets × 60 seeds: sizes, directions, intersections, backwards cap, every target once, no blocked filler, every stage direction appears (this is the fallback guard) |
+| 3 Play screen | `a6a0ebc` | `WordSearchPlayViewModelTests` — 11 finger-style tests (drag, snap, hints, stars, finish, replay, crossing colour) |
+| 4 Progress + dashboard | `6c905cb` | `WordSearchSnapshotTests`, `WordSearchRepositoryTests` — per-child `WordSearchRecord` rows, read-back through a fresh context |
+| 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
+
+**Measured, not planned:** 249 target words (the brief's "~320" was 8 × 40; the
+stage-1 sheets legitimately carry 4). Grid sizes are the smallest stage size
+under 70% target letters — 20 sheets sit one size above the minimum. Phone
+cells on a 10×10 are ~31pt.
+
+**Defects found by measuring before landing** (all fixed, all now guarded):
+two 3-letter words on stage-4 sheets; four sheets stuck in the rows-only
+fallback because a target contained a blocked word (S**HELL**, GR**ASS**…); letters
+from *different* words lining up into DIE; three sheets never laying a
+diagonal at 86% density; and the test file's own run counter dividing by two,
+which would have hidden the fallback defect.
+
+**Open — not engineering:**
+- **Art track (risk 4)** — every sheet still plays on an emoji mascot and a
+  gradient. `WordSearchSheet.mascot` / `.palette` are the swap points.
+- **Touch size on 10×10 phones** — the spec wants 48pt, the phone gives ~31pt
+  with drag-to-line snapping. Decide after watching a child play sheet 31+.
+- **Stars earned before `6c905cb`** lived in `UserDefaults` and were not migrated
+  (the feature had not shipped).
+
+The rest of this document is the study as written before any code landed.
+
 ## Verdict
 
 **Feasible, and most of it is cheap.** The prompt is written for Unity, but every
