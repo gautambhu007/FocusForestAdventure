@@ -13,7 +13,8 @@
 //
 //  Scoring (< a few ms): sample the glyph outline into points; score =
 //  70% coverage (outline points the child passed near) + 30% precision
-//  (child's points that stayed near the outline). 60%+ passes.
+//  (child's points that stayed near the outline). `TracingProgress.passScore`
+//  is the pass bar.
 //
 
 import SwiftUI
@@ -115,10 +116,14 @@ enum GlyphOutline {
     }
 
     /// Accuracy 0–100: coverage of the outline + precision of the strokes.
-    /// Calibrated for a 99% completion bar: a careful, COMPLETE trace by a
-    /// child should genuinely reach 99–100, while partial or off-shape
-    /// traces cannot — so the curve is generous near the top but the
-    /// coverage requirement stays strict.
+    ///
+    /// Wobble is forgiven by `tolerance` alone (a complete trace that stays
+    /// within it scores 100 however shaky), so the score itself is a plain
+    /// weighted sum with no top-end curve. An earlier `pow(raw, 0.55)` curve
+    /// — calibrated for a 99% pass bar that was abandoned for 88 in the same
+    /// change — did nothing for wobble but lifted partial traces over the
+    /// bar: three sides of a square scored 93 and half a letter 82–97.
+    /// Uncurved, half a letter scores ~70 and three quarters ~87.
     static func score(drawn: [[CGPoint]], outline: [CGPoint], tolerance: CGFloat) -> Int {
         let drawnPoints = drawn.flatMap { $0 }
         guard !drawnPoints.isEmpty, !outline.isEmpty else { return 0 }
@@ -137,9 +142,7 @@ enum GlyphOutline {
         let coverage = Double(covered) / Double(outline.count)
         let precision = Double(precise) / Double(drawnPoints.count)
         let raw = coverage * 0.7 + precision * 0.3
-        // Forgiving top-end curve: raw 0.95 → ~97, raw 0.98 → ~99.
-        let curved = pow(raw, 0.55)
-        return min(100, Int((curved * 100).rounded()))
+        return min(100, Int((raw * 100).rounded()))
     }
 }
 

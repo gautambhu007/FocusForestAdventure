@@ -77,7 +77,12 @@ final class AdditionEngineTests: XCTestCase {
         let plan = generator.generateMission(adventure: .numbers, difficulty: 2,
                                              age: 6, additionSection: .easy)
         XCTAssertEqual(plan.missionType, .simpleAddition)
-        XCTAssertEqual(plan.questions.count, 20)
+        // Was a literal 20 until 80567c0 (2026-08-02) raised
+        // MissionGeneratorEngine.questionsPerMission to 30 on purpose — the
+        // frustration guard ends the sitting early, so a longer set only
+        // gives more to children in the flow. Addition follows the shared
+        // count, which is what this line should assert.
+        XCTAssertEqual(plan.questions.count, MissionGeneratorEngine.questionsPerMission)
         for question in plan.questions {
             guard case .tapCorrect(let options, let correctID) = question.content else {
                 return XCTFail("Addition questions must be tapCorrect")
