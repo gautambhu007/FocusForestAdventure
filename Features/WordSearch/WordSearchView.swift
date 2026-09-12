@@ -370,23 +370,31 @@ struct WordSearchPlayView: View {
     @State var viewModel: WordSearchPlayViewModel
     @State private var mascotHop = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    /// The widest the puzzle column grows on a big screen. Beyond this the
+    /// cells stop being letters and start being tiles.
+    private static let puzzleColumnWidth: CGFloat = 560
+    private static let wordColumnWidth: CGFloat = 300
 
     var body: some View {
-        ZStack {
-            background.ignoresSafeArea()
+        GeometryReader { proxy in
+            // §22: iPad landscape puts the puzzle left and the words right;
+            // everything else stacks. Phones are portrait-only, so the
+            // width check only ever fires on an iPad.
+            let sideBySide = sizeClass == .regular && proxy.size.width > proxy.size.height
+            ZStack {
+                background.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 14) {
-                    titleBlock
-                    puzzlePanel
-                    wordList
+                if sideBySide {
+                    landscape(height: proxy.size.height)
+                } else {
+                    portrait
                 }
-                .padding(.horizontal, ForestTheme.Metrics.screenPadding)
-                .padding(.bottom, 24)
-            }
 
-            if viewModel.phase == .celebrating {
-                celebration
+                if viewModel.phase == .celebrating {
+                    celebration
+                }
             }
         }
         .navigationTitle(String(localized: "Page \(viewModel.sheet.number)"))
@@ -409,6 +417,46 @@ struct WordSearchPlayView: View {
     private var background: some View {
         LinearGradient(colors: [viewModel.sheet.palette.tint.opacity(0.55), ForestTheme.Colors.cloudWhite],
                        startPoint: .top, endPoint: .bottom)
+    }
+
+    // MARK: Layouts
+
+    private var portrait: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                titleBlock
+                puzzlePanel
+                wordList(singleColumn: false)
+            }
+            .frame(maxWidth: Self.puzzleColumnWidth)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, ForestTheme.Metrics.screenPadding)
+            .padding(.bottom, 24)
+        }
+    }
+
+    /// The puzzle column is sized to the height so the whole grid is on
+    /// screen without scrolling: the title block, the panel's own padding
+    /// and the margins take about 260pt of it.
+    private func landscape(height: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 24) {
+            ScrollView {
+                VStack(spacing: 14) {
+                    titleBlock
+                    puzzlePanel
+                }
+                .frame(maxWidth: min(Self.puzzleColumnWidth, height - 260))
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 24)
+            }
+            ScrollView {
+                wordList(singleColumn: true)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
+            }
+            .frame(width: Self.wordColumnWidth)
+        }
+        .padding(.horizontal, ForestTheme.Metrics.screenPadding)
     }
 
     // MARK: Title
@@ -443,7 +491,7 @@ struct WordSearchPlayView: View {
             .overlay(alignment: .topTrailing) {
                 Text(viewModel.sheet.mascot)
                     .font(.system(size: 44))
-                    .offset(x: 10, y: -26)
+                    .offset(x: 10, y: -34)
                     .scaleEffect(mascotHop && !reduceMotion ? 1.25 : 1)
                     .floating(amplitude: 4, period: 3)
                     .accessibilityHidden(true)
@@ -460,13 +508,19 @@ struct WordSearchPlayView: View {
 
     // MARK: Word list
 
-    private var wordList: some View {
+    private func wordList(singleColumn: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(String(localized: "WORDS TO FIND"))
                 .font(ForestTheme.Fonts.body)
                 .foregroundStyle(ForestTheme.Colors.deepGreen)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+            // A word never breaks across lines — WHIS-TLE is not a word a
+            // child can read — so long words get one column and the rest
+            // shrink a little rather than wrap.
+            let longWords = viewModel.words.contains { $0.text.count >= 8 }
+            LazyVGrid(columns: singleColumn || longWords ? [GridItem(.flexible())]
+                                                          : [GridItem(.adaptive(minimum: 150), spacing: 8)],
+                      spacing: 8) {
                 ForEach(viewModel.words) { word in
                     wordRow(word)
                 }
@@ -483,6 +537,8 @@ struct WordSearchPlayView: View {
             Text(word.emoji).font(.title3)
             Text(word.text)
                 .font(ForestTheme.Fonts.body)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(found ? ForestTheme.Colors.deepGreen.opacity(0.55) : ForestTheme.Colors.deepGreen)
                 .strikethrough(found, color: ForestTheme.Colors.deepGreen)
             Spacer(minLength: 0)
