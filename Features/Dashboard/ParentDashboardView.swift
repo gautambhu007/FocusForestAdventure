@@ -31,6 +31,8 @@ final class ParentDashboardViewModel {
     private(set) var puzzleBadges: [PuzzleBadge] = []
     private(set) var puzzleCrystals: [MagicCrystal] = []
     private(set) var hasPuzzleHistory = false
+    /// Word Hunt: pages finished, stars, and words found.
+    private(set) var wordHunt = WordSearchSnapshot()
     /// Phase 2.4: export files, regenerated on each load.
     private(set) var pdfReportURL: URL?
     private(set) var csvReportURL: URL?
@@ -82,6 +84,8 @@ final class ParentDashboardViewModel {
             self.puzzleBadges = PuzzleBadge.allCases.filter { puzzles.badges.contains($0) }
             self.puzzleCrystals = puzzles.earnedCrystals
             self.hasPuzzleHistory = puzzles.puzzlesAttempted > 0
+
+            self.wordHunt = try dependencies.wordSearchRepository.snapshot(for: child)
 
             // Phase 2.4: refresh shareable reports.
             let report = ReportBuilder().makeReport(
@@ -270,6 +274,26 @@ struct ParentDashboardView: View {
                 } else {
                     Text(String(localized: "Ratings appear once your child has played a few puzzles. Every skill is measured from play only — nothing leaves this device."))
                 }
+            }
+
+            Section {
+                if viewModel.wordHunt.completedCount == 0 {
+                    Text(String(localized: "No word pages finished yet — find them under 🔍 Words on the home screen."))
+                        .foregroundStyle(.secondary)
+                } else {
+                    LabeledContent(String(localized: "Pages finished"),
+                                   value: "\(viewModel.wordHunt.completedCount) of \(WordSearchWordBank.count)")
+                    LabeledContent(String(localized: "Stars"), value: "⭐ \(viewModel.wordHunt.totalStars)")
+                    LabeledContent(String(localized: "Words found"), value: "\(viewModel.wordHunt.wordsFound)")
+                    if let next = WordSearchWordBank.sheet(number: viewModel.wordHunt.nextSheetNumber),
+                       viewModel.wordHunt.completedCount < WordSearchWordBank.count {
+                        LabeledContent(String(localized: "Up next"), value: "\(next.emoji) \(next.title) · \(next.stage.localizedAges)")
+                    }
+                }
+            } header: {
+                Text(String(localized: "Word Hunt"))
+            } footer: {
+                Text(String(localized: "Forty picture word searches in four stages. Stars count hints: three with none, never fewer than one."))
             }
 
             Section {

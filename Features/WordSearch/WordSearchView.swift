@@ -27,13 +27,26 @@ final class WordSearchHubViewModel {
         self.dependencies = dependencies
     }
 
-    var sheets: [WordSearchSheet] { WordSearchWordBank.sheets }
-    var nextSheetNumber: Int { WordSearchProgress.nextSheetNumber }
-    var completedCount: Int { WordSearchProgress.completedCount }
-    var totalStars: Int { WordSearchProgress.totalStars }
+    private(set) var progress = WordSearchSnapshot()
 
-    func stars(_ sheet: WordSearchSheet) -> Int { WordSearchProgress.stars(for: sheet.number) }
-    func isUnlocked(_ sheet: WordSearchSheet) -> Bool { WordSearchProgress.isUnlocked(sheet.number) }
+    var sheets: [WordSearchSheet] { WordSearchWordBank.sheets }
+    var nextSheetNumber: Int { progress.nextSheetNumber }
+    var completedCount: Int { progress.completedCount }
+    var totalStars: Int { progress.totalStars }
+
+    func stars(_ sheet: WordSearchSheet) -> Int { progress.stars(for: sheet.number) }
+    func isUnlocked(_ sheet: WordSearchSheet) -> Bool { progress.isUnlocked(sheet.number) }
+
+    /// Re-read on every appearance: the map is what the child comes back
+    /// to after a sheet, and it must show the star they just won.
+    func refresh() {
+        do {
+            let child = try dependencies.childRepository.activeChild()
+            progress = try dependencies.wordSearchRepository.snapshot(for: child)
+        } catch {
+            assertionFailure("Word Hunt progress load failed: \(error)")
+        }
+    }
 
     func sheetTapped(_ sheet: WordSearchSheet) {
         guard isUnlocked(sheet) else {
@@ -74,6 +87,7 @@ struct WordSearchHubView: View {
         }
         .navigationTitle(String(localized: "🔍 Word Hunt"))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { viewModel.refresh() }
     }
 
     private var header: some View {
@@ -310,7 +324,14 @@ final class WordSearchPlayViewModel {
 
     private func finish() {
         starsEarned = max(1, 3 - hintsUsed)
-        WordSearchProgress.record(stars: starsEarned, for: sheet.number)
+        do {
+            let child = try dependencies.childRepository.activeChild()
+            try dependencies.wordSearchRepository.recordFinish(
+                sheetNumber: sheet.number, stars: starsEarned, hintsUsed: hintsUsed, for: child
+            )
+        } catch {
+            assertionFailure("Word Hunt save failed: \(error)")
+        }
         phase = .celebrating
         dependencies.soundEngine.play(.starEarned)
         dependencies.hapticsService.playSuccess()

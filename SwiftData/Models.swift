@@ -48,6 +48,9 @@ final class ChildProfile {
     @Relationship(deleteRule: .cascade, inverse: \PuzzleSkillStat.child)
     var puzzleSkillStats: [PuzzleSkillStat]? = []
 
+    @Relationship(deleteRule: .cascade, inverse: \WordSearchRecord.child)
+    var wordSearchRecords: [WordSearchRecord]? = []
+
     /// Puzzle Adventure World wallet, trophies, and the aggregate play
     /// signals behind the parent skill table. Cross-world, so they live on
     /// the child rather than on a per-world progress row.
@@ -371,6 +374,27 @@ final class PuzzleProgress {
     init(world: PuzzleWorld, difficulty: Int = 1) {
         self.worldRaw = world.rawValue
         self.difficulty = difficulty
+    }
+}
+
+// MARK: - Word Hunt
+
+/// One row per (child, sheet) of the Word Hunt campaign — written the
+/// first time a sheet is finished, then kept at the child's best.
+@Model
+final class WordSearchRecord {
+    var sheetNumber: Int = 1
+    /// Best stars on this sheet, 1…3. A row exists only for finished sheets.
+    var stars: Int = 0
+    /// Fewest hints used on a finished run.
+    var fewestHints: Int = 0
+    var timesFinished: Int = 0
+    var firstFinishedAt: Date = Date()
+    var updatedAt: Date = Date()
+    var child: ChildProfile?
+
+    init(sheetNumber: Int) {
+        self.sheetNumber = sheetNumber
     }
 }
 

@@ -30,6 +30,7 @@ final class AppDependencies {
     let storyRepository: any StoryRepository
     let customWordRepository: any CustomWordRepository
     let puzzleRepository: any PuzzleRepository
+    let wordSearchRepository: any WordSearchRepository
 
     // MARK: Engines & Services
     let soundEngine: any SoundEngineProtocol
@@ -105,6 +106,7 @@ final class AppDependencies {
         self.storyRepository = storyRepo
         self.customWordRepository = customWordRepo
         self.puzzleRepository = puzzleRepo
+        self.wordSearchRepository = SwiftDataWordSearchRepository(context: context)
 
         // Services
         let sound = SoundEngine()

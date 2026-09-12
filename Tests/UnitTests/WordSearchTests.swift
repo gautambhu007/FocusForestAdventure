@@ -189,42 +189,96 @@ final class WordSearchEngineTests: XCTestCase {
     }
 }
 
-@MainActor
-final class WordSearchProgressTests: XCTestCase {
-
-    override func setUp() async throws {
-        WordSearchProgress.reset()
-    }
-
-    override func tearDown() async throws {
-        WordSearchProgress.reset()
-    }
+/// The campaign rules on a value with no store behind it.
+final class WordSearchSnapshotTests: XCTestCase {
 
     func testOnlyTheFirstSheetIsOpenAtTheStart() {
-        XCTAssertTrue(WordSearchProgress.isUnlocked(1))
-        XCTAssertFalse(WordSearchProgress.isUnlocked(2))
-        XCTAssertEqual(WordSearchProgress.nextSheetNumber, 1)
-        XCTAssertEqual(WordSearchProgress.completedCount, 0)
+        let snapshot = WordSearchSnapshot()
+        XCTAssertTrue(snapshot.isUnlocked(1))
+        XCTAssertFalse(snapshot.isUnlocked(2))
+        XCTAssertEqual(snapshot.nextSheetNumber, 1)
+        XCTAssertEqual(snapshot.completedCount, 0)
+        XCTAssertEqual(snapshot.wordsFound, 0)
     }
 
-    func testFinishingASheetOpensTheNext() {
-        WordSearchProgress.record(stars: 2, for: 1)
-        XCTAssertTrue(WordSearchProgress.isUnlocked(2))
-        XCTAssertFalse(WordSearchProgress.isUnlocked(3))
-        XCTAssertEqual(WordSearchProgress.nextSheetNumber, 2)
-        XCTAssertEqual(WordSearchProgress.totalStars, 2)
+    func testFinishingASheetOpensTheNextAndCountsItsWords() {
+        var snapshot = WordSearchSnapshot()
+        snapshot.stars[1] = 2
+        XCTAssertTrue(snapshot.isUnlocked(2))
+        XCTAssertFalse(snapshot.isUnlocked(3))
+        XCTAssertEqual(snapshot.nextSheetNumber, 2)
+        XCTAssertEqual(snapshot.totalStars, 2)
+        XCTAssertEqual(snapshot.wordsFound, WordSearchWordBank.sheets[0].words.count)
     }
 
-    func testStarsNeverGoDown() {
-        WordSearchProgress.record(stars: 3, for: 5)
-        WordSearchProgress.record(stars: 1, for: 5)
-        XCTAssertEqual(WordSearchProgress.stars(for: 5), 3)
+    func testNextSheetIsTheFirstGapNotTheHighestFinished() {
+        var snapshot = WordSearchSnapshot()
+        snapshot.stars[1] = 3
+        snapshot.stars[3] = 1
+        XCTAssertEqual(snapshot.nextSheetNumber, 2)
+        XCTAssertEqual(snapshot.completedCount, 2)
     }
 
     func testFinishedCampaignPointsAtTheLastSheet() {
-        for number in 1...WordSearchWordBank.count { WordSearchProgress.record(stars: 1, for: number) }
-        XCTAssertEqual(WordSearchProgress.nextSheetNumber, WordSearchWordBank.count)
-        XCTAssertEqual(WordSearchProgress.completedCount, WordSearchWordBank.count)
+        var snapshot = WordSearchSnapshot()
+        for number in 1...WordSearchWordBank.count { snapshot.stars[number] = 1 }
+        XCTAssertEqual(snapshot.nextSheetNumber, WordSearchWordBank.count)
+        XCTAssertEqual(snapshot.completedCount, WordSearchWordBank.count)
+        XCTAssertEqual(snapshot.wordsFound, WordSearchWordBank.allWords.count)
+    }
+}
+
+@MainActor
+final class WordSearchRepositoryTests: XCTestCase {
+
+    private var container: ModelContainer!
+    private var deps: AppDependencies!
+
+    override func setUp() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        container = try ModelContainer(for: ModelContainerFactory.schema, configurations: [config])
+        deps = AppDependencies(modelContainer: container)
+    }
+
+    override func tearDown() async throws {
+        deps = nil
+        container = nil
+    }
+
+    func testAFreshChildHasNothing() throws {
+        let child = try deps.childRepository.activeChild()
+        XCTAssertEqual(try deps.wordSearchRepository.snapshot(for: child), WordSearchSnapshot())
+    }
+
+    func testAFinishIsReadBackAndSurvivesAFreshContext() throws {
+        let child = try deps.childRepository.activeChild()
+        try deps.wordSearchRepository.recordFinish(sheetNumber: 1, stars: 2, hintsUsed: 1, for: child)
+
+        let again = AppDependencies(modelContainer: container)
+        let snapshot = try again.wordSearchRepository.snapshot(for: try again.childRepository.activeChild())
+        XCTAssertEqual(snapshot.stars(for: 1), 2)
+        XCTAssertEqual(snapshot.timesFinished, 1)
+        XCTAssertNotNil(snapshot.lastFinishedAt)
+        XCTAssertTrue(snapshot.isUnlocked(2))
+    }
+
+    func testStarsNeverGoDownButFinishesAndFewestHintsKeepCounting() throws {
+        let child = try deps.childRepository.activeChild()
+        try deps.wordSearchRepository.recordFinish(sheetNumber: 5, stars: 3, hintsUsed: 0, for: child)
+        try deps.wordSearchRepository.recordFinish(sheetNumber: 5, stars: 1, hintsUsed: 4, for: child)
+        let snapshot = try deps.wordSearchRepository.snapshot(for: child)
+        XCTAssertEqual(snapshot.stars(for: 5), 3)
+        XCTAssertEqual(snapshot.timesFinished, 2)
+        let row = try XCTUnwrap(child.wordSearchRecords?.first { $0.sheetNumber == 5 })
+        XCTAssertEqual(row.fewestHints, 0)
+        XCTAssertEqual(child.wordSearchRecords?.count, 1, "one row per sheet")
+    }
+
+    func testRowsBelongToTheirChild() throws {
+        let child = try deps.childRepository.activeChild()
+        try deps.wordSearchRepository.recordFinish(sheetNumber: 2, stars: 3, hintsUsed: 0, for: child)
+        let other = try deps.childRepository.createChild(name: "Other", avatarEmoji: "🦊")
+        XCTAssertEqual(try deps.wordSearchRepository.snapshot(for: other), WordSearchSnapshot())
     }
 }
 
@@ -237,16 +291,18 @@ final class WordSearchPlayViewModelTests: XCTestCase {
     private var deps: AppDependencies!
 
     override func setUp() async throws {
-        WordSearchProgress.reset()
         let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         container = try ModelContainer(for: ModelContainerFactory.schema, configurations: [config])
         deps = AppDependencies(modelContainer: container)
     }
 
     override func tearDown() async throws {
-        WordSearchProgress.reset()
         deps = nil
         container = nil
+    }
+
+    private func savedStars(for sheet: Int) throws -> Int {
+        try deps.wordSearchRepository.snapshot(for: try deps.childRepository.activeChild()).stars(for: sheet)
     }
 
     private func makeViewModel(sheet: Int = 1, seed: UInt64 = 11) -> WordSearchPlayViewModel {
@@ -309,15 +365,17 @@ final class WordSearchPlayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sparkleTrigger, 1)
     }
 
-    func testFindingEveryWordFinishesWithThreeStarsAndRecordsProgress() {
+    func testFindingEveryWordFinishesWithThreeStarsAndRecordsProgress() throws {
         let viewModel = makeViewModel(sheet: 3)
         for placement in viewModel.puzzle.placements {
             drag(viewModel, [placement.cells.first!, placement.cells.last!])
         }
         XCTAssertEqual(viewModel.phase, .celebrating)
         XCTAssertEqual(viewModel.starsEarned, 3)
-        XCTAssertEqual(WordSearchProgress.stars(for: 3), 3)
-        XCTAssertTrue(WordSearchProgress.isUnlocked(4))
+        XCTAssertEqual(try savedStars(for: 3), 3)
+        let hub = WordSearchHubViewModel(dependencies: deps)
+        hub.refresh()
+        XCTAssertTrue(hub.isUnlocked(WordSearchWordBank.sheets[3]), "the map sees the new star")
     }
 
     func testEachHintCostsAStarDownToOne() {
@@ -363,7 +421,7 @@ final class WordSearchPlayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sparkleTrigger, before)
     }
 
-    func testPlayAgainDealsAFreshGridAndClearsEverything() {
+    func testPlayAgainDealsAFreshGridAndClearsEverything() throws {
         let viewModel = makeViewModel(sheet: 5)
         let firstSeed = viewModel.puzzle.seed
         viewModel.hintTapped()
@@ -377,7 +435,7 @@ final class WordSearchPlayViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.foundCells.isEmpty)
         XCTAssertNil(viewModel.hintCell)
         XCTAssertEqual(viewModel.hintsUsed, 0)
-        XCTAssertEqual(WordSearchProgress.stars(for: 5), 2, "the first run's stars are kept")
+        XCTAssertEqual(try savedStars(for: 5), 2, "the first run's stars are kept")
     }
 
     func testACrossingCellKeepsTheColourOfTheWordFoundFirst() {

@@ -18,7 +18,8 @@ enum ModelContainerFactory {
         AchievementRecord.self,
         CustomWord.self,
         PuzzleProgress.self,
-        PuzzleSkillStat.self
+        PuzzleSkillStat.self,
+        WordSearchRecord.self
     ])
 
     /// True when the app is running as an XCTest host. The test build isn't

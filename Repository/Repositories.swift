@@ -80,6 +80,44 @@ protocol PuzzleRepository {
     func placeMuralPiece(in world: PuzzleWorld, for child: ChildProfile) throws -> MuralPlacement
 }
 
+@MainActor
+protocol WordSearchRepository {
+    func snapshot(for child: ChildProfile) throws -> WordSearchSnapshot
+    /// A finished sheet. Stars only ever go up; a rough replay never
+    /// takes one away.
+    func recordFinish(sheetNumber: Int, stars: Int, hintsUsed: Int, for child: ChildProfile) throws
+}
+
+/// Word Hunt progress as the screens and the dashboard read it. The
+/// campaign rules — one sheet opens the next, the map points at the first
+/// unfinished sheet — live here so they can be tested without a store.
+struct WordSearchSnapshot: Sendable, Equatable {
+    /// Best stars per finished sheet.
+    var stars: [Int: Int] = [:]
+    var timesFinished: Int = 0
+    var lastFinishedAt: Date?
+
+    func stars(for sheetNumber: Int) -> Int { stars[sheetNumber] ?? 0 }
+
+    /// A sheet opens once the one before it is finished. Sheet 1 is always open.
+    func isUnlocked(_ sheetNumber: Int) -> Bool {
+        sheetNumber <= 1 || stars(for: sheetNumber - 1) > 0
+    }
+
+    /// The first sheet with no stars yet; every earlier one is done. A
+    /// finished campaign points at its last sheet.
+    var nextSheetNumber: Int {
+        (1...WordSearchWordBank.count).first { stars(for: $0) == 0 } ?? WordSearchWordBank.count
+    }
+
+    var completedCount: Int { stars.values.filter { $0 > 0 }.count }
+    var totalStars: Int { stars.values.reduce(0, +) }
+    /// Target words the child has found across finished sheets.
+    var wordsFound: Int {
+        stars.keys.reduce(0) { $0 + (WordSearchWordBank.sheet(number: $1)?.words.count ?? 0) }
+    }
+}
+
 /// What happened when a piece was placed.
 struct MuralPlacement: Sendable, Equatable {
     var placed: Bool
@@ -456,5 +494,45 @@ final class SwiftDataPuzzleRepository: PuzzleRepository {
         row.child = child
         context.insert(row)
         return row
+    }
+}
+
+// MARK: - Word Hunt
+
+@MainActor
+final class SwiftDataWordSearchRepository: WordSearchRepository {
+    private let context: ModelContext
+
+    init(context: ModelContext) {
+        self.context = context
+    }
+
+    func snapshot(for child: ChildProfile) throws -> WordSearchSnapshot {
+        var snapshot = WordSearchSnapshot()
+        for row in child.wordSearchRecords ?? [] where row.stars > 0 {
+            snapshot.stars[row.sheetNumber] = row.stars
+            snapshot.timesFinished += row.timesFinished
+            if snapshot.lastFinishedAt.map({ row.updatedAt > $0 }) ?? true {
+                snapshot.lastFinishedAt = row.updatedAt
+            }
+        }
+        return snapshot
+    }
+
+    func recordFinish(sheetNumber: Int, stars: Int, hintsUsed: Int, for child: ChildProfile) throws {
+        let row: WordSearchRecord
+        if let existing = (child.wordSearchRecords ?? []).first(where: { $0.sheetNumber == sheetNumber }) {
+            row = existing
+            row.fewestHints = min(row.fewestHints, hintsUsed)
+        } else {
+            row = WordSearchRecord(sheetNumber: sheetNumber)
+            row.child = child
+            row.fewestHints = hintsUsed
+            context.insert(row)
+        }
+        row.stars = max(row.stars, stars)
+        row.timesFinished += 1
+        row.updatedAt = Date()
+        try context.save()
     }
 }
