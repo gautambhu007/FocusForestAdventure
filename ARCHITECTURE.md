@@ -305,6 +305,15 @@ model, so a rigged character replaces the layer and inherits the behaviour.
 Brief, templates, the feasibility study (with a status block saying what
 landed and what is open) and the artist's contract are in `docs/WordSearch/`.
 
+## 4h. Type
+
+Two bundled faces under `Resources/Fonts` (SIL OFL): Nunito for display —
+hero, titles, headings, puzzle letters — and Quicksand for body and captions,
+through `ForestTheme.Fonts`, each size relative to a text style so Dynamic
+Type scales it. The variable fonts' named instances are addressed directly
+(`Nunito-Black`, `Quicksand-SemiBold`). Views that still hard-code a system
+rounded font predate this and are a known sweep.
+
 ## 5. Persistence & sync
 
 Single SwiftData store, CloudKit private database (`.private` ModelConfiguration).

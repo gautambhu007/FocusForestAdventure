@@ -18,6 +18,7 @@ fast-forwarded from `feature/puzzle-quest`. What holds each one:
 | 3 Play screen | `a6a0ebc` | `WordSearchPlayViewModelTests` — 11 finger-style tests (drag, snap, hints, stars, finish, replay, crossing colour) |
 | 4 Progress + dashboard | `6c905cb` | `WordSearchSnapshotTests`, `WordSearchRepositoryTests` — per-child `WordSearchRecord` rows, read-back through a fresh context |
 | 5 iPad layout | `e8d674e` | Rendered at iPad landscape/portrait and iPhone via a throwaway test; no permanent snapshot (the snapshot target has no recorded references) |
+| 9 Feel pass (Gautam, evening) | `c3f2a48` `059582e` `20aa889` | Lap slowed to ~4s with corner pauses and growth; spoken cheer after the word (test: word, then one of eight cheers, no repeat on the next word); scenes breathe and carry motes; app set in Nunito + Quicksand |
 | 8 Found-word lap + read-aloud | `429f89e` | `testAFoundWordIsReadOutInLowercaseSoItIsSpoken` (speech spy: one utterance per find, none for a miss or repeat); the lap itself is a `KeyframeAnimator` checked by eye in the simulator |
 | 7 Code-painted scenes | `a452c28` | `testEverySheetHasAPaintedSceneFromOneSourceOrTheOther` — 21 forest + 19 painted, exactly one source per sheet, every family used; all twelve rendered and three sheets checked on screen |
 | 6 Art contract | `8ca14d5` | `WordSearchArtTests` — names unique and catalog-safe across all 609 assets, missing asset is nil, 21 painted places; `testTheMascotFollowsPlay` |
@@ -37,7 +38,10 @@ tropical, savanna, arctic, robot, construction, railway). What remains:
    only 9 words that exist in the game.
 2. **The 10×10 touch size on phones** — a decision from watching a child play
    sheet 31+.
-3. **Progress loss without iCloud** (found walking the simulator, `516570c`):
+3. **Type sweep** — `ForestTheme.Fonts` is Nunito/Quicksand now, but 36 places
+   in other features hard-code `Font.system(... design: .rounded)`; those
+   screens still show the old face. A mechanical sweep if the look is kept.
+4. **Progress loss without iCloud** (found walking the simulator, `516570c`):
    a child profile and 1/40 ⭐⭐⭐ vanished between two launches a few minutes
    apart on a simulator with no iCloud account. The store in use is the App
    Group one (`groupContainer: .automatic`); CloudKit mirroring fails every
